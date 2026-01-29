@@ -1,0 +1,10 @@
+# 单 GPU 配置
+providers:
+  compute: "local_single"
+
+training:
+  gradAccum: 4
+  batchSize: 8
+
+lora:
+  quantization: "4bit"

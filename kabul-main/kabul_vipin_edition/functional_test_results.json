@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-01-16T01:10:48.649563",
+  "task": "java-to-csharp-functional-correctness",
+  "num_samples": 100,
+  "device": "cuda",
+  "post_process_enabled": true,
+  "fine_tuned": {
+    "model": "./fine_tuned_codet5_java_csharp/final_model",
+    "pass_rate": 0.7205882352941176,
+    "compilation_rate": 0.8529411764705882,
+    "passed": 49,
+    "compiled": 58,
+    "valid_samples": 68,
+    "total_samples": 100
+  },
+  "base": {
+    "model": "Salesforce/codet5-base",
+    "pass_rate": 0.0,
+    "compilation_rate": 0.0,
+    "passed": 0,
+    "compiled": 0,
+    "valid_samples": 68,
+    "total_samples": 100
+  }
+}

@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Train 3B split - Complete Training Report</title>
+    <style>
+        :root {
+            --bg-primary: #0f0f1a;
+            --bg-secondary: #1a1a2e;
+            --bg-tertiary: #252540;
+            --bg-card: #2d2d4a;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --text-muted: #606070;
+            --accent: #4a9eff;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --border: #3a3a5a;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        
+        /* Warnings Banner */
+        .warnings-banner {
+            background: linear-gradient(135deg, #4a2020, #3a1a1a);
+            border: 1px solid #ef4444;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+        }
+        
+        .warnings-banner .warnings-title {
+            color: #ef4444;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        
+        .warnings-banner .warning-item {
+            color: #fca5a5;
+            font-size: 13px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .warnings-banner .warning-item:last-child {
+            border-bottom: none;
+        }
+        
+        /* Eval Not Run Notice */
+        .eval-not-run {
+            background: linear-gradient(135deg, #2a2040, #1a1530);
+            border: 1px solid #8b5cf6;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            color: #c4b5fd;
+            font-size: 13px;
+        }
+        
+        /* Reproducibility Section */
+        .repro-table {
+            font-size: 13px;
+        }
+        
+        .repro-table th {
+            width: 30%;
+        }
+        
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header h1 {
+            color: var(--accent);
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+        
+        .header .meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .header .meta-item {
+            background: var(--bg-secondary);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        
+        .header .meta-item strong {
+            color: var(--text-primary);
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+        
+        .metric-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+        
+        .metric-card .value.success { color: var(--success); }
+        .metric-card .value.warning { color: var(--warning); }
+        .metric-card .value.error { color: var(--error); }
+        
+        .metric-card .label {
+            color: var(--text-secondary);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Section */
+        .section {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border);
+        }
+        
+        .section h2 {
+            color: var(--accent);
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section h2 .icon {
+            font-size: 1.4rem;
+        }
+        
+        .section h3 {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin: 20px 0 12px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            width: 40%;
+            background: rgba(0,0,0,0.2);
+        }
+        
+        td {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            color: var(--text-primary);
+        }
+        
+        td.highlight { color: var(--accent); font-weight: 600; }
+        td.success { color: var(--success); }
+        td.warning { color: var(--warning); }
+        td.error { color: var(--error); }
+        .muted { color: var(--text-muted); font-style: italic; }
+        
+        /* Two Column */
+        .two-col {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+        
+        @media (max-width: 768px) {
+            .two-col { grid-template-columns: 1fr; }
+        }
+        
+        /* Chart */
+        .chart-container {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 16px;
+        }
+        
+        /* Checkpoints */
+        .checkpoints-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        
+        .checkpoint-item {
+            background: var(--bg-tertiary);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            border: 1px solid var(--border);
+        }
+        
+        .checkpoint-item .step {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        .checkpoint-item .epoch,
+        .checkpoint-item .loss {
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
+        
+        /* Raw Data */
+        .raw-data {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+        
+        .raw-data summary {
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 0;
+        }
+        
+        .raw-data pre {
+            background: var(--bg-primary);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            margin-top: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        /* Footer */
+        footer {
+            margin-top: 48px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            padding: 24px;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <h1>🧪 Train 3B split</h1>
+        <div class="meta">
+            <div class="meta-item">Run ID: <strong>run_fb297</strong></div>
+            <div class="meta-item">Duration: <strong>1h 39m</strong></div>
+            <div class="meta-item">Seed: <strong>42</strong></div>
+            <div class="meta-item">Git: <strong>ba2899a</strong></div>
+            <div class="meta-item">Generated: <strong>2026-01-29 01:00:50</strong></div>
+        </div>
+    </div>
+
+    <!-- Warnings Banner (P0: Data Consistency Checks) -->
+    
+
+    <!-- Key Metrics -->
+    <div class="section">
+        <h2><span class="icon">📊</span> Key Metrics</h2>
+        <table>
+            <tr><th>Pass@1</th><td class="highlight">N/A</td></tr>
+            <tr><th>Compile Rate</th><td>N/A</td></tr>
+            <tr><th>Final Loss</th><td>0.3333</td></tr>
+            <tr><th>Planned Steps</th><td>200</td></tr>
+            
+            <tr><th><strong>Effective Update Steps</strong></th><td class="highlight"><strong>40</strong></td></tr>
+            <tr><th>Trainable Params</th><td>29.93M</td></tr>
+            <tr><th>Trainable %</th><td>1.7317%</td></tr>
+        </table>
+    </div>
+    
+    
+
+    <!-- Training Loss Curve -->
+    <div class="section"><h2><span class="icon">📈</span> Training Loss Curve</h2><div class="chart-container">
+        <svg viewBox="0 0 800 250" style="width: 100%; height: auto; max-height: 300px;">
+            <!-- Grid -->
+            <line x1="70" y1="200.0" x2="750" y2="200.0" stroke="#3a3a5a" stroke-dasharray="4"/><text x="60" y="204.0" text-anchor="end" fill="#a0a0b0" font-size="12">0.294</text><line x1="70" y1="157.5" x2="750" y2="157.5" stroke="#3a3a5a" stroke-dasharray="4"/><text x="60" y="161.5" text-anchor="end" fill="#a0a0b0" font-size="12">0.752</text><line x1="70" y1="115.0" x2="750" y2="115.0" stroke="#3a3a5a" stroke-dasharray="4"/><text x="60" y="119.0" text-anchor="end" fill="#a0a0b0" font-size="12">1.211</text><line x1="70" y1="72.5" x2="750" y2="72.5" stroke="#3a3a5a" stroke-dasharray="4"/><text x="60" y="76.5" text-anchor="end" fill="#a0a0b0" font-size="12">1.669</text><line x1="70" y1="30.0" x2="750" y2="30.0" stroke="#3a3a5a" stroke-dasharray="4"/><text x="60" y="34.0" text-anchor="end" fill="#a0a0b0" font-size="12">2.127</text>
+            
+            <!-- Axes -->
+            <line x1="70" y1="30" x2="70" y2="200" stroke="#4a4a6a" stroke-width="2"/>
+            <line x1="70" y1="200" x2="750" y2="200" stroke="#4a4a6a" stroke-width="2"/>
+            
+            <!-- X Labels -->
+            <text x="70.0" y="220" text-anchor="middle" fill="#a0a0b0" font-size="12">10</text><text x="240.0" y="220" text-anchor="middle" fill="#a0a0b0" font-size="12">57</text><text x="410.0" y="220" text-anchor="middle" fill="#a0a0b0" font-size="12">105</text><text x="580.0" y="220" text-anchor="middle" fill="#a0a0b0" font-size="12">153</text><text x="750.0" y="220" text-anchor="middle" fill="#a0a0b0" font-size="12">201</text>
+            
+            <!-- Axis Titles -->
+            <text x="20" y="125" text-anchor="middle" fill="#707080" font-size="12" transform="rotate(-90 20 125)">Loss</text>
+            <text x="400" y="240" text-anchor="middle" fill="#707080" font-size="12">Step</text>
+            
+            <!-- Loss Curve -->
+            <path d="M 70.0 47.9 L 73.6 47.9 L 105.6 155.4 L 109.2 155.4 L 141.2 184.8 L 144.8 184.8 L 176.8 182.9 L 180.4 182.9 L 212.4 187.3 L 216.0 187.3 L 248.0 191.4 L 251.6 191.4 L 283.6 190.7 L 287.2 190.7 L 319.2 191.9 L 322.8 191.9 L 354.8 189.9 L 358.4 189.9 L 390.4 190.1 L 394.0 190.1 L 426.0 194.4 L 429.6 194.4 L 461.6 194.5 L 465.2 194.5 L 497.2 196.7 L 500.8 196.7 L 532.8 194.0 L 536.4 194.0 L 568.4 196.2 L 572.0 196.2 L 604.0 195.3 L 607.6 195.3 L 639.6 197.0 L 643.2 197.0 L 675.2 195.9 L 678.8 195.9 L 710.8 195.2 L 714.4 195.2 L 746.4 196.4 L 750.0 196.4" fill="none" stroke="#4a9eff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            
+            <!-- Start Point -->
+            <circle cx="70.0" cy="47.9" r="4" fill="#f59e0b"/>
+            
+            <!-- End Point -->
+            <circle cx="750.0" cy="196.4" r="5" fill="#10b981"/>
+            
+            <!-- Legend -->
+            <circle cx="690" cy="20" r="4" fill="#f59e0b"/>
+            <text x="700" y="24" fill="#a0a0b0" font-size="11">Start</text>
+            <circle cx="690" cy="38" r="4" fill="#10b981"/>
+            <text x="700" y="42" fill="#a0a0b0" font-size="11">End</text>
+        </svg>
+        </div></div>
+
+    <!-- Training Metrics Log Table -->
+    
+        <div class="section">
+            <h2><span class="icon">📊</span> Training Metrics Log</h2>
+            
+            <!-- 统计摘要 -->
+            <div class="metrics-summary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+                <div class="summary-item" style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="color: var(--text-secondary); font-size: 12px;">Total Steps</div>
+                    <div style="color: var(--accent); font-size: 18px; font-weight: 600;">40</div>
+                </div>
+                <div class="summary-item" style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="color: var(--text-secondary); font-size: 12px;">Min Loss (Step 170)</div>
+                    <div style="color: var(--success); font-size: 18px; font-weight: 600;">0.327100</div>
+                </div>
+                <div class="summary-item" style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="color: var(--text-secondary); font-size: 12px;">Max Loss</div>
+                    <div style="color: var(--warning); font-size: 18px; font-weight: 600;">1.933400</div>
+                </div>
+                <div class="summary-item" style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="color: var(--text-secondary); font-size: 12px;">Avg Loss</div>
+                    <div style="color: var(--text-primary); font-size: 18px; font-weight: 600;">0.473400</div>
+                </div>
+            </div>
+            
+            <!-- Per-Epoch 统计表格 -->
+            
+            <h3 style="margin-top: 24px;">Per-Epoch Statistics</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Epoch</th>
+                        <th>Avg Loss</th>
+                        <th>Min Loss</th>
+                        <th>Max Loss</th>
+                        <th>Eval Loss</th>
+                        <th>Final LR</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                <tr>
+                    <td style="font-weight: 600;">1</td>
+                    <td>0.604520</td>
+                    <td>0.381500</td>
+                    <td>1.933400</td>
+                    <td>N/A</td>
+                    <td>5.32e-05</td>
+                </tr>
+            
+                <tr>
+                    <td style="font-weight: 600;">2</td>
+                    <td>0.342280</td>
+                    <td>0.327100</td>
+                    <td>0.359200</td>
+                    <td>N/A</td>
+                    <td>6.56e-09</td>
+                </tr>
+            
+                </tbody>
+            </table>
+            
+            
+            <!-- 摘要表格 -->
+            <h3>Key Data Points</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Epoch</th>
+                        <th>Loss</th>
+                        <th>Learning Rate</th>
+                        <th>Grad Norm</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                <tr>
+                    <td>10</td>
+                    <td>0.1</td>
+                    <td class="">1.933400</td>
+                    <td>9.99e-05</td>
+                    <td>1.5781</td>
+                </tr>
+            
+                <tr>
+                    <td>11</td>
+                    <td>0.1</td>
+                    <td class="">1.933400</td>
+                    <td>9.99e-05</td>
+                    <td>1.5781</td>
+                </tr>
+            
+                <tr>
+                    <td>21</td>
+                    <td>0.2</td>
+                    <td class="">0.774800</td>
+                    <td>9.89e-05</td>
+                    <td>0.6641</td>
+                </tr>
+            
+                <tr>
+                    <td>30</td>
+                    <td>0.3</td>
+                    <td class="">0.458300</td>
+                    <td>9.66e-05</td>
+                    <td>0.2891</td>
+                </tr>
+            
+                <tr>
+                    <td>40</td>
+                    <td>0.4</td>
+                    <td class="">0.479000</td>
+                    <td>9.30e-05</td>
+                    <td>0.3379</td>
+                </tr>
+            
+                <tr>
+                    <td>41</td>
+                    <td>0.4</td>
+                    <td class="">0.479000</td>
+                    <td>9.30e-05</td>
+                    <td>0.3379</td>
+                </tr>
+            
+                <tr>
+                    <td>50</td>
+                    <td>0.5</td>
+                    <td class="">0.431000</td>
+                    <td>8.84e-05</td>
+                    <td>0.2793</td>
+                </tr>
+            
+                <tr>
+                    <td>60</td>
+                    <td>0.6</td>
+                    <td class="">0.387600</td>
+                    <td>8.27e-05</td>
+                    <td>0.2949</td>
+                </tr>
+            
+                <tr>
+                    <td>61</td>
+                    <td>0.6</td>
+                    <td class="">0.387600</td>
+                    <td>8.27e-05</td>
+                    <td>0.2949</td>
+                </tr>
+            
+                <tr>
+                    <td>71</td>
+                    <td>0.7</td>
+                    <td class="">0.394900</td>
+                    <td>7.62e-05</td>
+                    <td>0.4062</td>
+                </tr>
+            
+                <tr>
+                    <td>80</td>
+                    <td>0.8</td>
+                    <td class="">0.381500</td>
+                    <td>6.89e-05</td>
+                    <td>0.3164</td>
+                </tr>
+            
+                <tr>
+                    <td>81</td>
+                    <td>0.8</td>
+                    <td class="">0.381500</td>
+                    <td>6.89e-05</td>
+                    <td>0.3164</td>
+                </tr>
+            
+                <tr>
+                    <td>91</td>
+                    <td>0.9</td>
+                    <td class="">0.403200</td>
+                    <td>6.12e-05</td>
+                    <td>0.3066</td>
+                </tr>
+            
+                <tr>
+                    <td>100</td>
+                    <td>1</td>
+                    <td class="">0.401500</td>
+                    <td>5.32e-05</td>
+                    <td>0.2871</td>
+                </tr>
+            
+                <tr>
+                    <td>110</td>
+                    <td>1.1</td>
+                    <td class="">0.354700</td>
+                    <td>4.51e-05</td>
+                    <td>0.3516</td>
+                </tr>
+            
+                <tr>
+                    <td>111</td>
+                    <td>1.1</td>
+                    <td class="">0.354700</td>
+                    <td>4.51e-05</td>
+                    <td>0.3516</td>
+                </tr>
+            
+                <tr>
+                    <td>120</td>
+                    <td>1.2</td>
+                    <td class="">0.353700</td>
+                    <td>3.72e-05</td>
+                    <td>0.3379</td>
+                </tr>
+            
+                <tr>
+                    <td>130</td>
+                    <td>1.3</td>
+                    <td class="">0.329500</td>
+                    <td>2.96e-05</td>
+                    <td>0.2793</td>
+                </tr>
+            
+                <tr>
+                    <td>131</td>
+                    <td>1.3</td>
+                    <td class="">0.329500</td>
+                    <td>2.96e-05</td>
+                    <td>0.2793</td>
+                </tr>
+            
+                <tr>
+                    <td>140</td>
+                    <td>1.4</td>
+                    <td class="">0.359200</td>
+                    <td>2.25e-05</td>
+                    <td>0.4102</td>
+                </tr>
+            
+                <tr>
+                    <td>150</td>
+                    <td>1.5</td>
+                    <td class="">0.335300</td>
+                    <td>1.61e-05</td>
+                    <td>0.4062</td>
+                </tr>
+            
+                <tr>
+                    <td>151</td>
+                    <td>1.5</td>
+                    <td class="">0.335300</td>
+                    <td>1.61e-05</td>
+                    <td>0.4062</td>
+                </tr>
+            
+                <tr>
+                    <td>161</td>
+                    <td>1.6</td>
+                    <td class="">0.345000</td>
+                    <td>1.06e-05</td>
+                    <td>0.3320</td>
+                </tr>
+            
+                <tr>
+                    <td>170</td>
+                    <td>1.7</td>
+                    <td class="highlight">0.327100</td>
+                    <td>6.17e-06</td>
+                    <td>0.2930</td>
+                </tr>
+            
+                <tr>
+                    <td>171</td>
+                    <td>1.7</td>
+                    <td class="highlight">0.327100</td>
+                    <td>6.17e-06</td>
+                    <td>0.2930</td>
+                </tr>
+            
+                <tr>
+                    <td>181</td>
+                    <td>1.8</td>
+                    <td class="">0.339100</td>
+                    <td>2.86e-06</td>
+                    <td>0.3066</td>
+                </tr>
+            
+                <tr>
+                    <td>190</td>
+                    <td>1.9</td>
+                    <td class="">0.345900</td>
+                    <td>7.91e-07</td>
+                    <td>0.3848</td>
+                </tr>
+            
+                <tr>
+                    <td>200</td>
+                    <td>2</td>
+                    <td class="">0.333300</td>
+                    <td>6.56e-09</td>
+                    <td>0.3750</td>
+                </tr>
+            
+                <tr>
+                    <td>201</td>
+                    <td>2</td>
+                    <td class="">0.333300</td>
+                    <td>6.56e-09</td>
+                    <td>0.3750</td>
+                </tr>
+            
+                </tbody>
+            </table>
+            
+            <!-- 完整数据（可展开） -->
+            <details class="raw-data" style="margin-top: 20px;">
+                <summary>📋 View All 40 Data Points</summary>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table style="font-size: 12px;">
+                        <thead>
+                            <tr>
+                                <th>Step</th>
+                                <th>Epoch</th>
+                                <th>Loss</th>
+                                <th>Learning Rate</th>
+                                <th>Grad Norm</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                <tr>
+                    <td>10</td>
+                    <td>0.1</td>
+                    <td>1.933400</td>
+                    <td>9.99e-05</td>
+                    <td>1.5781</td>
+                </tr>
+            
+                <tr>
+                    <td>11</td>
+                    <td>0.1</td>
+                    <td>1.933400</td>
+                    <td>9.99e-05</td>
+                    <td>1.5781</td>
+                </tr>
+            
+                <tr>
+                    <td>20</td>
+                    <td>0.2</td>
+                    <td>0.774800</td>
+                    <td>9.89e-05</td>
+                    <td>0.6641</td>
+                </tr>
+            
+                <tr>
+                    <td>21</td>
+                    <td>0.2</td>
+                    <td>0.774800</td>
+                    <td>9.89e-05</td>
+                    <td>0.6641</td>
+                </tr>
+            
+                <tr>
+                    <td>30</td>
+                    <td>0.3</td>
+                    <td>0.458300</td>
+                    <td>9.66e-05</td>
+                    <td>0.2891</td>
+                </tr>
+            
+                <tr>
+                    <td>31</td>
+                    <td>0.3</td>
+                    <td>0.458300</td>
+                    <td>9.66e-05</td>
+                    <td>0.2891</td>
+                </tr>
+            
+                <tr>
+                    <td>40</td>
+                    <td>0.4</td>
+                    <td>0.479000</td>
+                    <td>9.30e-05</td>
+                    <td>0.3379</td>
+                </tr>
+            
+                <tr>
+                    <td>41</td>
+                    <td>0.4</td>
+                    <td>0.479000</td>
+                    <td>9.30e-05</td>
+                    <td>0.3379</td>
+                </tr>
+            
+                <tr>
+                    <td>50</td>
+                    <td>0.5</td>
+                    <td>0.431000</td>
+                    <td>8.84e-05</td>
+                    <td>0.2793</td>
+                </tr>
+            
+                <tr>
+                    <td>51</td>
+                    <td>0.5</td>
+                    <td>0.431000</td>
+                    <td>8.84e-05</td>
+                    <td>0.2793</td>
+                </tr>
+            
+                <tr>
+                    <td>60</td>
+                    <td>0.6</td>
+                    <td>0.387600</td>
+                    <td>8.27e-05</td>
+                    <td>0.2949</td>
+                </tr>
+            
+                <tr>
+                    <td>61</td>
+                    <td>0.6</td>
+                    <td>0.387600</td>
+                    <td>8.27e-05</td>
+                    <td>0.2949</td>
+                </tr>
+            
+                <tr>
+                    <td>70</td>
+                    <td>0.7</td>
+                    <td>0.394900</td>
+                    <td>7.62e-05</td>
+                    <td>0.4062</td>
+                </tr>
+            
+                <tr>
+                    <td>71</td>
+                    <td>0.7</td>
+                    <td>0.394900</td>
+                    <td>7.62e-05</td>
+                    <td>0.4062</td>
+                </tr>
+            
+                <tr>
+                    <td>80</td>
+                    <td>0.8</td>
+                    <td>0.381500</td>
+                    <td>6.89e-05</td>
+                    <td>0.3164</td>
+                </tr>
+            
+                <tr>
+                    <td>81</td>
+                    <td>0.8</td>
+                    <td>0.381500</td>
+                    <td>6.89e-05</td>
+                    <td>0.3164</td>
+                </tr>
+            
+                <tr>
+                    <td>90</td>
+                    <td>0.9</td>
+                    <td>0.403200</td>
+                    <td>6.12e-05</td>
+                    <td>0.3066</td>
+                </tr>
+            
+                <tr>
+                    <td>91</td>
+                    <td>0.9</td>
+                    <td>0.403200</td>
+                    <td>6.12e-05</td>
+                    <td>0.3066</td>
+                </tr>
+            
+                <tr>
+                    <td>100</td>
+                    <td>1</td>
+                    <td>0.401500</td>
+                    <td>5.32e-05</td>
+                    <td>0.2871</td>
+                </tr>
+            
+                <tr>
+                    <td>101</td>
+                    <td>1</td>
+                    <td>0.401500</td>
+                    <td>5.32e-05</td>
+                    <td>0.2871</td>
+                </tr>
+            
+                <tr>
+                    <td>110</td>
+                    <td>1.1</td>
+                    <td>0.354700</td>
+                    <td>4.51e-05</td>
+                    <td>0.3516</td>
+                </tr>
+            
+                <tr>
+                    <td>111</td>
+                    <td>1.1</td>
+                    <td>0.354700</td>
+                    <td>4.51e-05</td>
+                    <td>0.3516</td>
+                </tr>
+            
+                <tr>
+                    <td>120</td>
+                    <td>1.2</td>
+                    <td>0.353700</td>
+                    <td>3.72e-05</td>
+                    <td>0.3379</td>
+                </tr>
+            
+                <tr>
+                    <td>121</td>
+                    <td>1.2</td>
+                    <td>0.353700</td>
+                    <td>3.72e-05</td>
+                    <td>0.3379</td>
+                </tr>
+            
+                <tr>
+                    <td>130</td>
+                    <td>1.3</td>
+                    <td>0.329500</td>
+                    <td>2.96e-05</td>
+                    <td>0.2793</td>
+                </tr>
+            
+                <tr>
+                    <td>131</td>
+                    <td>1.3</td>
+                    <td>0.329500</td>
+                    <td>2.96e-05</td>
+                    <td>0.2793</td>
+                </tr>
+            
+                <tr>
+                    <td>140</td>
+                    <td>1.4</td>
+                    <td>0.359200</td>
+                    <td>2.25e-05</td>
+                    <td>0.4102</td>
+                </tr>
+            
+                <tr>
+                    <td>141</td>
+                    <td>1.4</td>
+                    <td>0.359200</td>
+                    <td>2.25e-05</td>
+                    <td>0.4102</td>
+                </tr>
+            
+                <tr>
+                    <td>150</td>
+                    <td>1.5</td>
+                    <td>0.335300</td>
+                    <td>1.61e-05</td>
+                    <td>0.4062</td>
+                </tr>
+            
+                <tr>
+                    <td>151</td>
+                    <td>1.5</td>
+                    <td>0.335300</td>
+                    <td>1.61e-05</td>
+                    <td>0.4062</td>
+                </tr>
+            
+                <tr>
+                    <td>160</td>
+                    <td>1.6</td>
+                    <td>0.345000</td>
+                    <td>1.06e-05</td>
+                    <td>0.3320</td>
+                </tr>
+            
+                <tr>
+                    <td>161</td>
+                    <td>1.6</td>
+                    <td>0.345000</td>
+                    <td>1.06e-05</td>
+                    <td>0.3320</td>
+                </tr>
+            
+                <tr>
+                    <td>170</td>
+                    <td>1.7</td>
+                    <td>0.327100</td>
+                    <td>6.17e-06</td>
+                    <td>0.2930</td>
+                </tr>
+            
+                <tr>
+                    <td>171</td>
+                    <td>1.7</td>
+                    <td>0.327100</td>
+                    <td>6.17e-06</td>
+                    <td>0.2930</td>
+                </tr>
+            
+                <tr>
+                    <td>180</td>
+                    <td>1.8</td>
+                    <td>0.339100</td>
+                    <td>2.86e-06</td>
+                    <td>0.3066</td>
+                </tr>
+            
+                <tr>
+                    <td>181</td>
+                    <td>1.8</td>
+                    <td>0.339100</td>
+                    <td>2.86e-06</td>
+                    <td>0.3066</td>
+                </tr>
+            
+                <tr>
+                    <td>190</td>
+                    <td>1.9</td>
+                    <td>0.345900</td>
+                    <td>7.91e-07</td>
+                    <td>0.3848</td>
+                </tr>
+            
+                <tr>
+                    <td>191</td>
+                    <td>1.9</td>
+                    <td>0.345900</td>
+                    <td>7.91e-07</td>
+                    <td>0.3848</td>
+                </tr>
+            
+                <tr>
+                    <td>200</td>
+                    <td>2</td>
+                    <td>0.333300</td>
+                    <td>6.56e-09</td>
+                    <td>0.3750</td>
+                </tr>
+            
+                <tr>
+                    <td>201</td>
+                    <td>2</td>
+                    <td>0.333300</td>
+                    <td>6.56e-09</td>
+                    <td>0.3750</td>
+                </tr>
+            
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        </div>
+        
+
+    <!-- Model & Dataset -->
+    <div class="two-col">
+        <div class="section">
+            <h2><span class="icon">🤖</span> Base Model</h2>
+            <table>
+                <tr><th>Model Name</th><td class="highlight">qwen2.5-coder-3B-Instruct</td></tr>
+                <tr><th>Model Path</th><td>storage\models\qwen2.5-coder-3B-Instruct</td></tr>
+                <tr><th>Parameters</th><td>Unknown</td></tr>
+                <tr><th>Quantization</th><td>4bit</td></tr>
+            </table>
+        </div>
+        <div class="section">
+            <h2><span class="icon">📊</span> Dataset</h2>
+            <table>
+                <tr><th>Dataset Name</th><td class="highlight">train_split</td></tr>
+                <tr><th>Dataset Path</th><td>C:\Users\Shu Leo\Desktop\practical course\LLMTrainPipeline\backend\storage\final refined version\train_split.jsonl</td></tr>
+                <tr><th>Total Samples</th><td>1600</td></tr>
+                <tr><th>Train Samples</th><td>1600</td></tr>
+                <tr><th>Total Tokens</th><td>1.64M</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Environment & Hardware -->
+    <div class="two-col">
+        <div class="section">
+            <h2><span class="icon">🖥️</span> Environment</h2>
+            <table>
+                <tr><th>Operating System</th><td>Windows 11</td></tr>
+                <tr><th>Python</th><td>3.12.10</td></tr>
+                <tr><th>PyTorch</th><td>2.6.0.dev20241112+cu121</td></tr>
+                <tr><th>Transformers</th><td>4.57.6</td></tr>
+                <tr><th>TRL</th><td>0.27.0</td></tr>
+                <tr><th>PEFT</th><td>0.18.1</td></tr>
+                <tr><th>CUDA</th><td>12.1</td></tr>
+                <tr><th>cuDNN</th><td>90100</td></tr>
+                <tr><th>bitsandbytes</th><td>0.49.1</td></tr>
+            </table>
+        </div>
+        <div class="section">
+            <h2><span class="icon">⚡</span> Hardware</h2>
+            <table>
+                <tr><th>GPU</th><td class="highlight">NVIDIA GeForce RTX 4070 Laptop GPU</td></tr>
+                <tr><th>GPU Memory</th><td>8</td></tr>
+                <tr><th>CPU</th><td>AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD</td></tr>
+                <tr><th>RAM</th><td>15.24</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Training Configuration -->
+    <div class="section">
+        <h2><span class="icon">⚙️</span> Training Configuration (Complete)</h2>
+        <div class="two-col">
+            <table>
+                <tr><th>Batch Size (per device)</th><td>1</td></tr>
+                <tr><th>Gradient Accumulation</th><td>16</td></tr>
+                <tr><th>Effective Batch Size</th><td class="highlight">16</td></tr>
+                <tr><th>Learning Rate</th><td>1e-4</td></tr>
+                <tr><th>LR Scheduler</th><td>cosine</td></tr>
+                <tr><th>Warmup Ratio</th><td>0.03</td></tr>
+            </table>
+            <table>
+                <tr><th>Epochs</th><td>2</td></tr>
+                <tr><th>Max Sequence Length</th><td>512</td></tr>
+                <tr><th>Optimizer</th><td>paged_adamw_8bit</td></tr>
+                <tr><th>Weight Decay</th><td>0.01</td></tr>
+                <tr><th>Precision</th><td>none</td></tr>
+                <tr><th>Total Steps</th><td class="highlight">40</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- LoRA Configuration -->
+    
+    <div class="section">
+        <h2><span class="icon">🔧</span> LoRA Configuration (Complete)</h2>
+        <div class="two-col">
+            <table>
+                <tr><th>Enabled</th><td>Yes</td></tr>
+                <tr><th>Rank (r)</th><td>16</td></tr>
+                <tr><th>Alpha</th><td>32</td></tr>
+                <tr><th>Dropout</th><td>0.05</td></tr>
+            </table>
+            <table>
+                <tr><th>Target Modules</th><td>q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj</td></tr>
+                <tr><th>Quantization</th><td>4bit</td></tr>
+                <tr><th>Trainable Parameters</th><td class="highlight">29.93M</td></tr>
+                <tr><th>Total Parameters</th><td>1.73B</td></tr>
+                <tr><th>Trainable Percentage</th><td class="highlight">1.7317%</td></tr>
+            </table>
+        </div>
+    </div>
+    
+
+    <!-- Evaluation Results -->
+    <div class="section">
+        <h2><span class="icon">🎯</span> Evaluation Results (Complete)</h2>
+        <div class="eval-not-run">📋 Evaluation Not Run - 未运行代码评测，Pass@k 和 Compile Rate 等指标无数据</div>
+        <div class="two-col">
+            <div>
+                <h3>Pass@k Metrics</h3>
+                <table>
+                    <tr><th>Pass@1</th><td class="highlight success">N/A</td></tr>
+                    <tr><th>Pass@5</th><td>N/A</td></tr>
+                    <tr><th>Pass@10</th><td>N/A</td></tr>
+                    <tr><th>Compile Rate</th><td>N/A</td></tr>
+                </table>
+            </div>
+            <div>
+                <h3>Error Distribution</h3>
+                <table>
+                    <tr><th>Syntax Error</th><td class="error">N/A</td></tr>
+                    <tr><th>Runtime Error</th><td class="warning">N/A</td></tr>
+                    <tr><th>Timeout</th><td>N/A</td></tr>
+                    <tr><th>Assertion Error</th><td>N/A</td></tr>
+                    <tr><th>Import Error</th><td>N/A</td></tr>
+                    <tr><th>Memory Error</th><td>N/A</td></tr>
+                </table>
+            </div>
+        </div>
+        
+        <h3>Execution Time Statistics</h3>
+        <table>
+            <tr>
+                <th>Mean Runtime</th><td>N/A</td>
+                <th>P50 Runtime</th><td>N/A</td>
+            </tr>
+            <tr>
+                <th>P95 Runtime</th><td>N/A</td>
+                <th>Max Runtime</th><td>N/A</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Checkpoints -->
+    
+
+    <!-- Segment Breakdown by Difficulty/Category -->
+    
+
+    <!-- Failure Case Examples -->
+    
+
+    <!-- Raw Configuration -->
+    <div class="section">
+        <h2><span class="icon">📋</span> Raw Configuration Data</h2>
+        <details class="raw-data">
+            <summary>▶ View Complete Configuration JSON</summary>
+            <pre>{
+  "run_name": "Train 3B split",
+  "run_id": "run_fb297",
+  "seed": 42,
+  "start_time": "2026-01-22T22:38:00.321Z",
+  "end_time": "2026-01-23T00:17:25.207Z",
+  "duration": "1h 39m",
+  "git_commit": "ba2899a3",
+  "model": {
+    "name": "qwen2.5-coder-3B-Instruct",
+    "path": "storage\\models\\qwen2.5-coder-3B-Instruct",
+    "params": "Unknown"
+  },
+  "dataset": {
+    "name": "train_split",
+    "path": "C:\\Users\\Shu Leo\\Desktop\\practical course\\LLMTrainPipeline\\backend\\storage\\final refined version\\train_split.jsonl",
+    "samples": 1600,
+    "train_samples": 1600,
+    "val_samples": null,
+    "total_tokens": 1638400
+  },
+  "training": {
+    "lr": "1e-4",
+    "epochs": 2,
+    "batchSize": 1,
+    "gradAccum": 16,
+    "gradientAccumulation": 16,
+    "maxSeqLen": 512,
+    "maxLength": 512,
+    "warmupRatio": 0.03,
+    "weightDecay": 0.01,
+    "optimizer": "paged_adamw_8bit",
+    "scheduler": "cosine",
+    "precision": "none",
+    "total_steps": 200,
+    "raw_logged_steps": 40,
+    "effective_steps": 40
+  },
+  "lora": {
+    "enabled": true,
+    "rank": 16,
+    "alpha": 32,
+    "targetModules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "quantization": "4bit",
+    "dropout": 0.05
+  },
+  "lr": "1e-4",
+  "epochs": 2,
+  "batchSize": 1,
+  "maxSeqLen": 512,
+  "gradAccum": 16,
+  "warmupRatio": 0.03,
+  "warmupType": "ratio",
+  "warmupSteps": 0,
+  "weightDecay": 0.01,
+  "optimizer": "paged_adamw_8bit",
+  "scheduler": "cosine",
+  "precision": "none",
+  "gradientClipping": 1,
+  "loggingSteps": 10,
+  "saveSteps": 100,
+  "saveTotalLimit": 3,
+  "evalStrategy": "epoch",
+  "evalSteps": 200,
+  "earlyStoppingEnabled": false,
+  "earlyStoppingPatience": 3,
+  "earlyStoppingThreshold": 0,
+  "loadBestModelAtEnd": true,
+  "metricForBestModel": "loss",
+  "useLora": true,
+  "loraRank": 16,
+  "loraAlpha": 32,
+  "loraDropout": 0.05,
+  "loraBias": "none",
+  "loraTargetModules": [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj"
+  ],
+  "quantization": "4bit"
+}</pre>
+        </details>
+        <details class="raw-data">
+            <summary>▶ View Experiment Metadata JSON</summary>
+            <pre>{
+  "osVersion": "Windows 11",
+  "pythonVersion": "3.12.10",
+  "pytorchVersion": "2.6.0.dev20241112+cu121",
+  "transformersVersion": "4.57.6",
+  "trlVersion": "0.27.0",
+  "peftVersion": "0.18.1",
+  "cudaVersion": "12.1",
+  "cudnnVersion": "90100",
+  "bitsandbytesVersion": "0.49.1",
+  "gpuModel": "NVIDIA GeForce RTX 4070 Laptop GPU",
+  "gpuMemoryGB": 8,
+  "cpuModel": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+  "ramGB": 15.24
+}</pre>
+        </details>
+        <details class="raw-data">
+            <summary>▶ View Evaluation Results JSON</summary>
+            <pre>{}</pre>
+        </details>
+        <details class="raw-data">
+            <summary>▶ View LoRA Statistics JSON</summary>
+            <pre>{
+  "trainable_params": "29933568",
+  "total_params": "1728606208",
+  "trainable_percent": 1.7317,
+  "rank": 16,
+  "alpha": 32,
+  "dropout": 0.05,
+  "target_modules": [
+    "q_proj",
+    "k_proj",
+    "o_proj",
+    "down_proj",
+    "v_proj",
+    "gate_proj",
+    "up_proj"
+  ]
+}</pre>
+        </details>
+        <details class="raw-data">
+            <summary>▶ View Training Metrics JSON (first 20 entries)</summary>
+            <pre>[
+  {
+    "step": 10,
+    "loss": 1.9334,
+    "lr": 9.994100796397954e-05,
+    "gradNorm": 1.578125,
+    "epoch": 0.1
+  },
+  {
+    "step": 11,
+    "loss": 1.9334,
+    "lr": 9.994100796397954e-05,
+    "gradNorm": 1.578125,
+    "epoch": 0.1
+  },
+  {
+    "step": 20,
+    "loss": 0.7748,
+    "lr": 9.889612861977853e-05,
+    "gradNorm": 0.6640625,
+    "epoch": 0.2
+  },
+  {
+    "step": 21,
+    "loss": 0.7748,
+    "lr": 9.889612861977853e-05,
+    "gradNorm": 0.6640625,
+    "epoch": 0.2
+  },
+  {
+    "step": 30,
+    "loss": 0.4583,
+    "lr": 9.657180469054213e-05,
+    "gradNorm": 0.2890625,
+    "epoch": 0.3
+  },
+  {
+    "step": 31,
+    "loss": 0.4583,
+    "lr": 9.657180469054213e-05,
+    "gradNorm": 0.2890625,
+    "epoch": 0.3
+  },
+  {
+    "step": 40,
+    "loss": 0.479,
+    "lr": 9.302885579019627e-05,
+    "gradNorm": 0.337890625,
+    "epoch": 0.4
+  },
+  {
+    "step": 41,
+    "loss": 0.479,
+    "lr": 9.302885579019627e-05,
+    "gradNorm": 0.337890625,
+    "epoch": 0.4
+  },
+  {
+    "step": 50,
+    "loss": 0.431,
+    "lr": 8.835998878354931e-05,
+    "gradNorm": 0.279296875,
+    "epoch": 0.5
+  },
+  {
+    "step": 51,
+    "loss": 0.431,
+    "lr": 8.835998878354931e-05,
+    "gradNorm": 0.279296875,
+    "epoch": 0.5
+  },
+  {
+    "step": 60,
+    "loss": 0.3876,
+    "lr": 8.268737196446264e-05,
+    "gradNorm": 0.294921875,
+    "epoch": 0.6
+  },
+  {
+    "step": 61,
+    "loss": 0.3876,
+    "lr": 8.268737196446264e-05,
+    "gradNorm": 0.294921875,
+    "epoch": 0.6
+  },
+  {
+    "step": 70,
+    "loss": 0.3949,
+    "lr": 7.61594383291065e-05,
+    "gradNorm": 0.40625,
+    "epoch": 0.7
+  },
+  {
+    "step": 71,
+    "loss": 0.3949,
+    "lr": 7.61594383291065e-05,
+    "gradNorm": 0.40625,
+    "epoch": 0.7
+  },
+  {
+    "step": 80,
+    "loss": 0.3815,
+    "lr": 6.894700159171534e-05,
+    "gradNorm": 0.31640625,
+    "epoch": 0.8
+  },
+  {
+    "step": 81,
+    "loss": 0.3815,
+    "lr": 6.894700159171534e-05,
+    "gradNorm": 0.31640625,
+    "epoch": 0.8
+  },
+  {
+    "step": 90,
+    "loss": 0.4032,
+    "lr": 6.123878657343648e-05,
+    "gradNorm": 0.306640625,
+    "epoch": 0.9
+  },
+  {
+    "step": 91,
+    "loss": 0.4032,
+    "lr": 6.123878657343648e-05,
+    "gradNorm": 0.306640625,
+    "epoch": 0.9
+  },
+  {
+    "step": 100,
+    "loss": 0.4015,
+    "lr": 5.3236490918721794e-05,
+    "gradNorm": 0.287109375,
+    "epoch": 1
+  },
+  {
+    "step": 101,
+    "loss": 0.4015,
+    "lr": 5.3236490918721794e-05,
+    "gradNorm": 0.287109375,
+    "epoch": 1
+  }
+]</pre>
+        </details>
+    </div>
+
+    <footer>
+        <p>Generated by LLM Training Pipeline - Python Report Generator</p>
+        <p>2026-01-29T01:00:50.939143 | Run: Train 3B split</p>
+    </footer>
+</div>
+</body>
+</html>

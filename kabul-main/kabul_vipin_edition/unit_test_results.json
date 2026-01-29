@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-01-16T00:54:53.862416",
+  "dataset": "humaneval-cs",
+  "num_samples": 10,
+  "device": "cuda",
+  "fine_tuned": {
+    "model": "./fine_tuned_codet5_java_csharp/final_model",
+    "pass_at_1": 0.0,
+    "compilation_rate": 0.0,
+    "tests_passed": 0,
+    "tests_compiled": 0,
+    "tests_total": 10
+  }
+}

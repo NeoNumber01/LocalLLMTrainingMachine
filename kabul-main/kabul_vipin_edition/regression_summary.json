@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-01-16T02:20:41.240275",
+  "task": "text-to-code-regression",
+  "prompt_prefix": "Generate C# code: ",
+  "samples": 100,
+  "base_metrics": {
+    "bleu": 0.0,
+    "codebleu": 0.00991896310783548
+  },
+  "fine_tuned_metrics": {
+    "bleu": 4.4022846299592615,
+    "codebleu": 0.0801924314037682
+  }
+}

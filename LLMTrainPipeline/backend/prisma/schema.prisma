@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Run {
+  id              String           @id @default(uuid())
+  name            String
+  type            String
+  status          String           @default("queued")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  startedAt       DateTime?
+  completedAt     DateTime?
+  duration        String?
+  modelId         String
+  datasetId       String
+  evalDatasetId   String?
+  profileName     String           @default("single_gpu")
+  configJson      String
+  metricsJson     String?
+  evalResultJson  String?
+  seed            Int?
+  gitCommit       String?
+  totalTokens     Int?
+  totalSteps      Int?
+  gpuHours        Float?
+  tokensPerSecond Float?
+  sourceRunId     String?          // ID of the training run this eval is based on
+  queuePosition   Int?             // Position in queue, only valid for queued status
+  artifacts       Artifact[]
+  datasetMeta     DatasetMeta?
+  experimentMeta  ExperimentMeta?
+  loraStats       LoraStats?
+  postProcessLogs PostProcessLog[]
+  dataset         Dataset          @relation(fields: [datasetId], references: [id])
+  model           Model            @relation(fields: [modelId], references: [id])
+  events          RunEvent[]
+  metrics         RunMetric[]
+}
+
+model RunEvent {
+  id          String   @id @default(uuid())
+  runId       String
+  timestamp   DateTime @default(now())
+  level       String
+  message     String
+  payloadJson String?
+  run         Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model RunMetric {
+  id          String   @id @default(uuid())
+  runId       String
+  timestamp   DateTime @default(now())
+  step        Int
+  loss        Float?
+  passAt1     Float?
+  compileRate Float?
+  extraJson   String?
+  run         Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model Artifact {
+  id        String   @id @default(uuid())
+  runId     String
+  kind      String
+  path      String
+  size      Int
+  sha256    String?
+  createdAt DateTime @default(now())
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model Model {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  backend      String
+  source       String
+  quantization String
+  params       String
+  path         String
+  status       String   @default("valid")
+  metaJson     String?
+  updatedAt    DateTime @updatedAt
+  runs         Run[]
+}
+
+model Dataset {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  version   String
+  type      String
+  status    String   @default("ready")
+  samples   Int
+  format    String
+  size      String
+  path      String
+  hash      String
+  metaJson  String?
+  updatedAt DateTime @updatedAt
+  runs      Run[]
+}
+
+model Adapter {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  baseModel    String
+  trainDataset String
+  rank         Int
+  alpha        Int
+  status       String   @default("success")
+  createdAt    DateTime @default(now())
+  passAt1      Float?
+  compileRate  Float?
+  path         String?
+  metaJson     String?
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  title     String
+  type      String
+  format    String
+  size      String
+  path      String?
+  runId     String?
+  createdAt DateTime @default(now())
+}
+
+model KvCache {
+  key       String    @id
+  valueJson String
+  expireAt  DateTime?
+}
+
+model Setting {
+  key       String   @id
+  valueJson String
+  updatedAt DateTime @updatedAt
+}
+
+model ExperimentMeta {
+  id                  String    @id @default(uuid())
+  runId               String    @unique
+  osVersion           String?
+  pythonVersion       String?
+  pytorchVersion      String?
+  transformersVersion String?
+  trlVersion          String?
+  peftVersion         String?
+  cudaVersion         String?
+  cudnnVersion        String?
+  bitsandbytesVersion String?
+  gpuModel            String?
+  gpuMemoryGB         Float?
+  cpuModel            String?
+  ramGB               Float?
+  startTime           DateTime?
+  endTime             DateTime?
+  run                 Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model DatasetMeta {
+  id             String  @id @default(uuid())
+  runId          String  @unique
+  source         String?
+  trainSamples   Int?
+  valSamples     Int?
+  testSamples    Int?
+  totalProblems  Int?
+  totalTokens    Int?
+  promptTemplate String?
+  outputFormat   String?
+  dedupeMethod   String?
+  lengthFilter   String?
+  cleaningFlags  String?
+  splitMethod    String?
+  splitRatios    String?
+  statisticsJson String?  // JSON blob with token distribution, truncation, leakage stats
+  run            Run     @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model LoraStats {
+  id               String  @id @default(uuid())
+  runId            String  @unique
+  rank             Int?
+  alpha            Int?
+  dropout          Float?
+  targetModules    String?
+  trainableParams  BigInt?
+  totalParams      BigInt?
+  trainablePercent Float?
+  run              Run     @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model PostProcessLog {
+  id                    String  @id @default(uuid())
+  runId                 String
+  totalAttempts         Int?
+  successfulFixes       Int?
+  fixReasonDistribution String?
+  passAt1Before         Float?
+  passAt1After          Float?
+  syntaxErrorBefore     Float?
+  syntaxErrorAfter      Float?
+  runtimeErrorBefore    Float?
+  runtimeErrorAfter     Float?
+  run                   Run     @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  type      String    // run_completed, run_failed, resource_alert
+  title     String
+  message   String
+  runId     String?   // 可选关联的 Run ID
+  isRead    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+}

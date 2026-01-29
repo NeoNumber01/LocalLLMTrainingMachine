@@ -1,0 +1,10 @@
+# 多 GPU FSDP 配置
+providers:
+  compute: "local_multi_fsdp"
+
+training:
+  gradAccum: 1
+  batchSize: 32
+
+lora:
+  quantization: "none"

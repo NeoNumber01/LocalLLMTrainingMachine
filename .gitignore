@@ -1,0 +1,251 @@
+# ============================================
+# 代码翻译与LLM微调项目 - Git Ignore File
+# ============================================
+# 此文件用于排除大型模型文件、数据集、缓存等
+# 确保可以顺利 push 到 GitLab
+# ============================================
+
+# ============================================
+# 大型模型文件 (Critical - 通常几百MB到几十GB)
+# ============================================
+# PyTorch 模型权重
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# SafeTensors 格式
+*.safetensors
+
+# GGML/GGUF 格式 (llama.cpp)
+*.gguf
+*.ggml
+
+# TensorFlow 格式
+*.h5
+*.pb
+saved_model/
+
+# ============================================
+# kabul-main 特定排除
+# ============================================
+# 基础模型目录 (约 890MB)
+kabul-main/kabul_vipin_edition/codet5_base/
+!kabul-main/kabul_vipin_edition/codet5_base/README*.md
+
+# 微调后模型目录 (约 890MB + checkpoints)
+kabul-main/kabul_vipin_edition/fine_tuned_codet5_java_csharp/
+!kabul-main/kabul_vipin_edition/fine_tuned_codet5_java_csharp/train_report.md
+!kabul-main/kabul_vipin_edition/fine_tuned_codet5_java_csharp/training_logs.json
+
+# 评估结果 (CSV 可能很大)
+kabul-main/kabul_vipin_edition/evaluation_results_multidim.csv
+kabul-main/kabul_vipin_edition/regression_results.csv
+
+# ============================================
+# LLMTrainPipeline 特定排除
+# ============================================
+# 模型存储目录 (通常 5-50 GB)
+LLMTrainPipeline/backend/storage/models/
+LLMTrainPipeline/backend/storage/adapters/
+
+# 数据集目录 (100MB - 10GB)
+LLMTrainPipeline/backend/storage/datasets/
+LLMTrainPipeline/backend/storage/train_datasets/
+LLMTrainPipeline/backend/storage/eval_datasets/
+
+# 训练运行记录 (checkpoints, 1-50GB)
+LLMTrainPipeline/backend/storage/runs/
+LLMTrainPipeline/backend/storage/artifacts/
+LLMTrainPipeline/backend/storage/reports/
+LLMTrainPipeline/backend/storage/adapter_backups/
+
+# 保留 storage 目录结构
+!LLMTrainPipeline/backend/storage/.gitkeep
+
+# ============================================
+# Node.js 依赖
+# ============================================
+node_modules/
+.pnp/
+.pnp.js
+package-lock.json
+!LLMTrainPipeline/package-lock.json
+!LLMTrainPipeline/backend/package-lock.json
+
+# ============================================
+# 构建输出
+# ============================================
+dist/
+dist-ssr/
+build/
+.next/
+out/
+
+# ============================================
+# Python 环境与缓存
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.eggs/
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ============================================
+# Hugging Face 缓存
+# ============================================
+.cache/
+huggingface/
+~/.cache/huggingface/
+
+# ============================================
+# 数据集文件 (大型)
+# ============================================
+*.jsonl
+*.parquet
+*.arrow
+# 保留小型 JSON 文件但排除大型评估结果
+# *.json  # 不排除，因为包含配置文件
+
+# ============================================
+# 日志文件
+# ============================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Tensorboard 日志
+runs/
+logs/
+events.out.tfevents.*
+
+# Weights & Biases
+wandb/
+
+# ============================================
+# 数据库文件
+# ============================================
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+prisma/*.db
+
+# LLMTrainPipeline 数据库
+LLMTrainPipeline/backend/prisma/dev.db
+LLMTrainPipeline/backend/prisma/*.db
+
+# ============================================
+# 环境变量与密钥 (Critical - 安全)
+# ============================================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+*.pem
+secrets/
+credentials/
+
+# ============================================
+# 编辑器与 IDE
+# ============================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# ============================================
+# 操作系统文件
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ============================================
+# 临时文件
+# ============================================
+*.tmp
+*.temp
+*.bak
+*.backup
+temp/
+tmp/
+
+# ============================================
+# 调试输出文件
+# ============================================
+debug_output.txt
+test_output.txt
+verify_output.txt
+analysis_output.json
+
+# ============================================
+# LaTeX 编译产物
+# ============================================
+*.aux
+*.lof
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+*.bbl
+*.blg
+*.dvi
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+*.pdfsync
+
+# ============================================
+# 论文 PDF (可选择保留或排除)
+# ============================================
+# *.pdf  # 如果需要保留论文 PDF，注释此行
+
+# ============================================
+# 保留重要的配置和文档文件
+# ============================================
+!.gitignore
+!.gitattributes
+!.env.example
+!README.md
+!LICENSE
+!requirements.txt
+!package.json
+
+# ============================================
+# 保留目录结构的 .gitkeep 文件
+# ============================================
+!**/.gitkeep

@@ -1,0 +1,4 @@
+{
+  "name": "Nexus AI",
+  "description": "A local AI training pipeline tool with a dark developer console aesthetic. Features drop-in model discovery, run management, adapter compatibility checks, and detailed regression comparisons."
+}

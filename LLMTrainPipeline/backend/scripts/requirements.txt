@@ -1,0 +1,36 @@
+# ==============================================================================
+# LLMTrainPipeline - Python Dependencies
+# ==============================================================================
+# Install: python3 -m pip install -r requirements.txt
+# ==============================================================================
+
+# Core ML
+torch>=2.0.0
+transformers>=4.36.0
+accelerate>=0.25.0
+bitsandbytes>=0.41.0
+
+# LoRA/PEFT
+peft>=0.7.0
+
+# Data
+datasets>=2.15.0
+pandas>=2.0.0
+
+# Tokenization
+sentencepiece>=0.1.99
+tiktoken>=0.5.0
+
+# Evaluation
+jsonlines>=4.0.0
+
+# Utilities
+tqdm>=4.66.0
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Optional: Flash Attention (for faster training)
+# flash-attn>=2.3.0
+
+# Optional: vLLM (for faster inference)
+# vllm>=0.2.0

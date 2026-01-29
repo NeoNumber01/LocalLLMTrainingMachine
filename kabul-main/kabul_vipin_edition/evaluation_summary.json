@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-01-15T23:58:17.022498",
+  "fine_tuned_model": "./fine_tuned_codet5_java_csharp/final_model",
+  "base_model": "Salesforce/codet5-base",
+  "samples_evaluated": 894,
+  "comparison_enabled": true,
+  "fine_tuned_metrics": {
+    "bleu": 100.00000000000004,
+    "codebleu": 0.9389672171502438,
+    "codebleu_ngram": 0.9298707339060458,
+    "codebleu_weighted": 0.9464359169221501,
+    "codebleu_syntax": 0.9324462740583938,
+    "codebleu_dataflow": 0.9471159437143853,
+    "codebleu_note": "Using native Tree-sitter implementation",
+    "compilation_rate": 0.6923937360178971,
+    "compiled_count": 619,
+    "total_samples": 894,
+    "exact_match_rate": 0.11521252796420582,
+    "exact_matches": 103,
+    "avg_csharp_idioms": 0.116331096196868,
+    "total_linq_usage": 0,
+    "total_var_usage": 0,
+    "total_foreach_usage": 81,
+    "java_pattern_residue": 0,
+    "naming_score": 0.6908296557508493,
+    "pascal_case_methods": 1025,
+    "total_methods": 2185,
+    "syntax_validity_rate": 0.9228187919463087,
+    "syntax_valid_count": 825,
+    "syntax_error_breakdown": {
+      "syntax_error": 69
+    }
+  },
+  "base_metrics": {
+    "bleu": 54.17074373629339,
+    "codebleu": 0.10294580601651557,
+    "codebleu_ngram": 0.15445346191897305,
+    "codebleu_weighted": 0.1632094220041387,
+    "codebleu_syntax": 0.047399791241915505,
+    "codebleu_dataflow": 0.046720548901035004,
+    "codebleu_note": "Using native Tree-sitter implementation",
+    "compilation_rate": 0.0,
+    "compiled_count": 0,
+    "total_samples": 894,
+    "exact_match_rate": 0.0,
+    "exact_matches": 0,
+    "avg_csharp_idioms": 0.0,
+    "total_linq_usage": 0,
+    "total_var_usage": 0,
+    "total_foreach_usage": 0,
+    "java_pattern_residue": 0,
+    "naming_score": 0.9555120556798409,
+    "pascal_case_methods": 0,
+    "total_methods": 15,
+    "syntax_validity_rate": 0.0894854586129754,
+    "syntax_valid_count": 80,
+    "syntax_error_breakdown": {
+      "syntax_error": 814
+    }
+  }
+}

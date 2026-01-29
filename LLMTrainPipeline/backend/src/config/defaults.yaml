@@ -1,0 +1,49 @@
+# 默认配置
+training:
+  lr: "2e-4"
+  epochs: 3
+  batchSize: 1
+  optimizer: "paged_adamw_8bit"
+  scheduler: "cosine"
+  warmupRatio: 0.03
+  weightDecay: 0.01
+  maxSeqLen: 512
+  gradAccum: 8
+  precision: "none"
+
+lora:
+  enabled: true
+  rank: 16
+  alpha: 32
+  targetModules:
+    - "q_proj"
+    - "v_proj"
+  quantization: "4bit"
+
+eval:
+  evaluator: "pass_at_k"
+  k: "1,5,10"
+  temperature: 0.2
+  samples: 20
+  timeout: 60
+  maxTokens: 256
+  maxTestsPerProblem: 10  # 限制每个问题的测试用例数量，加速评估
+
+providers:
+  compute: "local_single"
+  trainer: "lora"
+  eval: "code_passk"
+  artifactStore: "filesystem"
+  cache: "memory_ttl"
+
+storage:
+  baseDir: "./storage"
+  modelsDir: "./storage/models"
+  trainDatasetsDir: "./storage/train_datasets"
+  evalDatasetsDir: "./storage/eval_datasets"
+  adaptersDir: "./storage/adapters"
+  artifactsDir: "./storage/artifacts"
+  reportsDir: "./storage/reports"
+
+cache:
+  ttlSeconds: 300

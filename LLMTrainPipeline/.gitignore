@@ -1,0 +1,174 @@
+# ============================================
+# LLMTrainPipeline - Git Ignore File
+# ============================================
+
+# ============================================
+# Dependencies
+# ============================================
+node_modules/
+.pnp/
+.pnp.js
+
+# ============================================
+# Build outputs
+# ============================================
+dist/
+dist-ssr/
+build/
+*.local
+.next/
+out/
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.eggs/
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ============================================
+# Machine Learning - LARGE FILES (Critical!)
+# ============================================
+# Model weights (typically 1-100+ GB)
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.gguf
+*.ggml
+
+# Hugging Face cache
+.cache/
+huggingface/
+
+# Model directories (storage)
+backend/storage/models/
+backend/storage/adapters/
+
+# ============================================
+# Datasets - LARGE FILES (Critical!)
+# ============================================
+# Raw datasets
+*.jsonl
+*.parquet
+*.arrow
+*.csv
+!package-lock.json
+
+# Dataset directories
+backend/storage/datasets/
+backend/storage/train_datasets/
+backend/storage/eval_datasets/
+
+# ============================================
+# Training artifacts - LARGE FILES
+# ============================================
+# Training runs (checkpoints, logs)
+backend/storage/runs/
+backend/storage/artifacts/
+backend/storage/reports/
+backend/storage/final refined version/
+
+# ⚠️ IMPORTANT: adapter_backups 是自动备份目录
+# 考虑将此目录排除在 gitignore 外以便追踪重要的 adapter
+# 或者定期手动将其复制到安全位置
+backend/storage/adapter_backups/
+
+# Tensorboard logs
+runs/
+logs/
+events.out.tfevents.*
+
+# Weights & Biases
+wandb/
+
+# ============================================
+# Logs
+# ============================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ============================================
+# Database
+# ============================================
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+prisma/*.db
+
+# ============================================
+# Environment & Secrets
+# ============================================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+*.pem
+secrets/
+credentials/
+
+# ============================================
+# Editor & IDE
+# ============================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# ============================================
+# OS Files
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ============================================
+# Temporary files
+# ============================================
+*.tmp
+*.temp
+*.bak
+*.backup
+temp/
+tmp/
+
+# ============================================
+# Debug output files
+# ============================================
+debug_output.txt
+test_output.txt
+verify_output.txt
+
+# ============================================
+# Keep certain directories (add .gitkeep inside)
+# ============================================
+!backend/storage/.gitkeep
