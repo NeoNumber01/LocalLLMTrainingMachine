@@ -218,7 +218,7 @@ model Notification {
   type      String    // run_completed, run_failed, resource_alert
   title     String
   message   String
-  runId     String?   // 可选关联的 Run ID
+  runId     String?   // Optional associated Run ID
   isRead    Boolean   @default(false)
   createdAt DateTime  @default(now())
   readAt    DateTime?

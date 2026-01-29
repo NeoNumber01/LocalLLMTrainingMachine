@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-验证双风格支持模块在真实数据上的工作情况
+Verify dual-style support module works on real data
 """
 import json
 import re
 import sys
 from io import StringIO
 
-# 从 eval.py 导入核心函数
+# Import core functions from eval.py
 sys.path.insert(0, __file__.rsplit('\\', 1)[0])
 
 def _generate_function_wrapper(code: str, fn_name: str, sample_input: str) -> str:
-    """生成函数调用包装器"""
+    """Generate function call wrapper"""
     is_solution_class = fn_name.startswith("Solution().")
     if is_solution_class:
         method_name = fn_name.split(".")[-1]
@@ -30,7 +30,7 @@ _fn = {call_prefix}
 _result = None
 _called = False
 
-# 策略1: 单个整数
+# Strategy 1: Single integer
 if not _called and len(_lines) == 1 and _lines[0].lstrip('-').isdigit():
     try:
         _arg = int(_lines[0])
@@ -39,7 +39,7 @@ if not _called and len(_lines) == 1 and _lines[0].lstrip('-').isdigit():
     except:
         pass
 
-# 策略2: 单行整数列表
+# Strategy 2: Single line integer list
 if not _called and len(_lines) == 1:
     try:
         _arr = list(map(int, _lines[0].split()))
@@ -48,7 +48,7 @@ if not _called and len(_lines) == 1:
     except:
         pass
 
-# 策略3: 第一行是n，第二行是数组
+# Strategy 3: First line is n, second line is array
 if not _called and len(_lines) >= 2:
     try:
         _n = int(_lines[0])
@@ -63,7 +63,7 @@ if not _called and len(_lines) >= 2:
     except:
         pass
 
-# 策略4: 空输入
+# Strategy 4: Empty input
 if not _called and len(_lines) == 0:
     try:
         _result = _fn()
@@ -75,7 +75,7 @@ if not _called and len(_lines) == 0:
         except:
             pass
 
-# 输出结果
+# Output result
 if _result is not None:
     if isinstance(_result, list):
         print(' '.join(map(str, _result)))
@@ -90,7 +90,7 @@ elif _result == 0:
 
 
 def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
-    """智能适配代码风格"""
+    """Smart code style adaptation"""
     has_def = bool(re.search(r'\bdef\s+\w+\s*\(', code))
     has_input = bool(re.search(r'\binput\s*\(', code))
     has_print = bool(re.search(r'\bprint\s*\(', code))
@@ -115,16 +115,16 @@ def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
 
 
 def normalize(s):
-    """规范化输出以进行比较"""
+    """Normalize output for comparison"""
     return '\n'.join(l.rstrip() for l in str(s).strip().replace('\r\n', '\n').split('\n'))
 
 
 def run_verification():
-    """运行验证测试"""
+    """Run verification tests"""
     test_path = r"C:\Users\Shu Leo\Desktop\practical course\LLMTrainPipeline\backend\storage\datasets\stage2 version2\test02-01.jsonl"
     
     print("=" * 60)
-    print("双风格支持模块 - 端到端验证")
+    print("Dual-Style Support Module - End-to-End Verification")
     print("=" * 60)
     
     passed = 0
@@ -134,7 +134,7 @@ def run_verification():
     try:
         with open(test_path, 'r', encoding='utf-8') as f:
             for i, line in enumerate(f):
-                if i >= 5:  # 只测试前5个样本
+                if i >= 5:  # Only test first 5 samples
                     break
                 
                 total += 1
@@ -144,22 +144,22 @@ def run_verification():
                 tests = sample.get('tests', [])
                 
                 if not tests:
-                    print(f"SKIP {sample_id}: 无测试用例")
+                    print(f"SKIP {sample_id}: No test cases")
                     continue
                 
                 first_test = json.loads(tests[0]) if isinstance(tests[0], str) else tests[0]
                 test_input = first_test.get('input', '')
                 expected = first_test.get('expected_output', '')
                 
-                # 确保 test_input 是字符串
+                # Ensure test_input is a string
                 if not isinstance(test_input, str):
                     test_input = str(test_input)
                 
-                # 适配代码
+                # Adapt code
                 adapted_code = _adapt_code_for_stdin_test(code, test_input)
                 was_adapted = adapted_code != code
                 
-                # 执行测试
+                # Execute test
                 inp = test_input if test_input.endswith('\n') else test_input + '\n'
                 
                 old_stdin, old_stdout = sys.stdin, sys.stdout
@@ -175,7 +175,7 @@ def run_verification():
                 expected_clean = str(expected).strip()
                 
                 match = normalize(actual) == normalize(expected_clean)
-                adapt_str = "[已适配]" if was_adapted else "[原样]"
+                adapt_str = "[Adapted]" if was_adapted else "[Original]"
                 
                 if match:
                     passed += 1
@@ -189,7 +189,7 @@ def run_verification():
                     })
                     
     except FileNotFoundError:
-        print(f"ERROR: 数据文件不存在: {test_path}")
+        print(f"ERROR: Data file does not exist: {test_path}")
         return
     except Exception as e:
         print(f"ERROR: {type(e).__name__}: {e}")
@@ -198,19 +198,19 @@ def run_verification():
         return
     
     print("=" * 60)
-    print(f"结果: {passed}/{total} 通过")
+    print(f"Result: {passed}/{total} passed")
     
     if failures:
-        print("\n失败详情:")
+        print("\nFailure details:")
         for f in failures[:3]:
             print(f"  {f['id']}:")
-            print(f"    期望: {f['expected']}")
-            print(f"    实际: {f['actual']}")
+            print(f"    Expected: {f['expected']}")
+            print(f"    Actual: {f['actual']}")
     
     if passed == total:
-        print("\n✅ 验证通过！双风格支持模块工作正常。")
+        print("\n✅ Verification passed! Dual-style support module works correctly.")
     else:
-        print(f"\n⚠️ {total - passed} 个测试失败，可能需要检查。")
+        print(f"\n⚠️ {total - passed} tests failed, may need investigation.")
     
     print("=" * 60)
 

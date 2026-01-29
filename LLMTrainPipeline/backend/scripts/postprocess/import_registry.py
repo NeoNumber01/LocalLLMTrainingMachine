@@ -1,18 +1,18 @@
 """
-Import 注册表模块
-300+ 常见标准库符号到模块的映射，用于自动依赖注入
+Import Registry Module
+300+ common standard library symbol to module mappings for automatic dependency injection
 """
 
 # =============================================================================
-# 符号到模块映射
-# 格式: "symbol": ("module", "import_style")
+# Symbol to Module Mapping
+# Format: "symbol": ("module", "import_style")
 # import_style: "from" = from module import symbol
-#               "import" = import module (使用 module.symbol)
+#               "import" = import module (use module.symbol)
 # =============================================================================
 
 IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     # =========================================================================
-    # typing 模块
+    # typing module
     # =========================================================================
     "List": ("typing", "from"),
     "Dict": ("typing", "from"),
@@ -46,7 +46,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "TYPE_CHECKING": ("typing", "from"),
     
     # =========================================================================
-    # collections 模块
+    # collections module
     # =========================================================================
     "deque": ("collections", "from"),
     "defaultdict": ("collections", "from"),
@@ -58,7 +58,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "UserString": ("collections", "from"),
     
     # =========================================================================
-    # math 模块
+    # math module
     # =========================================================================
     "sqrt": ("math", "from"),
     "ceil": ("math", "from"),
@@ -103,7 +103,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "radians": ("math", "from"),
     
     # =========================================================================
-    # itertools 模块
+    # itertools module
     # =========================================================================
     "permutations": ("itertools", "from"),
     "combinations": ("itertools", "from"),
@@ -127,7 +127,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "tee": ("itertools", "from"),
     
     # =========================================================================
-    # functools 模块
+    # functools module
     # =========================================================================
     "reduce": ("functools", "from"),
     "lru_cache": ("functools", "from"),
@@ -140,7 +140,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "cmp_to_key": ("functools", "from"),
     
     # =========================================================================
-    # heapq 模块
+    # heapq module
     # =========================================================================
     "heapify": ("heapq", "from"),
     "heappush": ("heapq", "from"),
@@ -152,7 +152,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "merge": ("heapq", "from"),
     
     # =========================================================================
-    # bisect 模块
+    # bisect module
     # =========================================================================
     "bisect": ("bisect", "from"),
     "bisect_left": ("bisect", "from"),
@@ -162,7 +162,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "insort_right": ("bisect", "from"),
     
     # =========================================================================
-    # operator 模块
+    # operator module
     # =========================================================================
     "add": ("operator", "from"),
     "sub": ("operator", "from"),
@@ -188,7 +188,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "methodcaller": ("operator", "from"),
     
     # =========================================================================
-    # random 模块
+    # random module
     # =========================================================================
     "random": ("random", "from"),
     "randint": ("random", "from"),
@@ -203,7 +203,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "Random": ("random", "from"),
     
     # =========================================================================
-    # re 模块
+    # re module
     # =========================================================================
     "compile": ("re", "from"),
     "match": ("re", "from"),
@@ -220,7 +220,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "VERBOSE": ("re", "from"),
     
     # =========================================================================
-    # string 模块
+    # string module
     # =========================================================================
     "ascii_letters": ("string", "from"),
     "ascii_lowercase": ("string", "from"),
@@ -233,7 +233,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "printable": ("string", "from"),
     
     # =========================================================================
-    # datetime 模块
+    # datetime module
     # =========================================================================
     "datetime": ("datetime", "from"),
     "date": ("datetime", "from"),
@@ -242,13 +242,13 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "timezone": ("datetime", "from"),
     
     # =========================================================================
-    # copy 模块
+    # copy module
     # =========================================================================
     "copy": ("copy", "from"),
     "deepcopy": ("copy", "from"),
     
     # =========================================================================
-    # json 模块
+    # json module
     # =========================================================================
     "dumps": ("json", "from"),
     "loads": ("json", "from"),
@@ -256,7 +256,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "load": ("json", "from"),
     
     # =========================================================================
-    # sys 模块 (特殊处理)
+    # sys module (special handling)
     # =========================================================================
     "maxsize": ("sys", "from"),
     "setrecursionlimit": ("sys", "from"),
@@ -266,7 +266,7 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
     "stderr": ("sys", "from"),
     
     # =========================================================================
-    # 整个模块导入 (使用 module.symbol 格式)
+    # Whole module imports (use module.symbol format)
     # =========================================================================
     "heapq": ("heapq", "import"),
     "bisect": ("bisect", "import"),
@@ -285,40 +285,40 @@ IMPORT_REGISTRY: dict[str, tuple[str, str]] = {
 
 def get_required_imports(code: str) -> set[str]:
     """
-    分析代码，找出需要的 import 语句
+    Analyze code to find required import statements
     
     Args:
-        code: Python 源代码
+        code: Python source code
         
     Returns:
-        需要添加的 import 语句集合
+        Set of import statements to add
     """
     import re
     import ast
     
-    # 提取代码中使用的所有名称
+    # Extract all names used in code
     used_names: set[str] = set()
     
-    # 使用正则表达式找出所有标识符
-    # 匹配 word boundary 的标识符
+    # Use regex to find all identifiers
+    # Match word boundary identifiers
     pattern = r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b'
     for match in re.finditer(pattern, code):
         used_names.add(match.group(1))
     
-    # 尝试解析 AST 获取更准确的名称
+    # Try parsing AST for more accurate names
     try:
         tree = ast.parse(code)
         for node in ast.walk(tree):
             if isinstance(node, ast.Name):
                 used_names.add(node.id)
             elif isinstance(node, ast.Attribute):
-                # 处理 module.symbol 格式
+                # Handle module.symbol format
                 if isinstance(node.value, ast.Name):
                     used_names.add(node.value.id)
     except SyntaxError:
-        pass  # 代码有语法错误，使用正则结果
+        pass  # Code has syntax error, use regex results
     
-    # 找出已有的 import
+    # Find existing imports
     existing_imports: set[str] = set()
     import_pattern = r'^(?:from\s+(\w+)|import\s+(\w+))'
     for line in code.split('\n'):
@@ -328,13 +328,13 @@ def get_required_imports(code: str) -> set[str]:
             if module:
                 existing_imports.add(module)
     
-    # 找出需要添加的 import
+    # Find required imports
     required_imports: set[str] = set()
     
     for name in used_names:
         if name in IMPORT_REGISTRY:
             module, style = IMPORT_REGISTRY[name]
-            # 检查模块是否已导入
+            # Check if module is already imported
             if module not in existing_imports:
                 if style == "from":
                     required_imports.add(f"from {module} import {name}")
@@ -346,16 +346,16 @@ def get_required_imports(code: str) -> set[str]:
 
 def generate_import_statements(required_imports: set[str]) -> str:
     """
-    生成优化的 import 语句块
-    合并同一模块的多个 from import
+    Generate optimized import statement block
+    Merge multiple from imports from same module
     
     Args:
-        required_imports: import 语句集合
+        required_imports: Set of import statements
         
     Returns:
-        格式化的 import 语句块
+        Formatted import statement block
     """
-    # 分类 import
+    # Categorize imports
     plain_imports: set[str] = set()
     from_imports: dict[str, set[str]] = {}
     
@@ -372,14 +372,14 @@ def generate_import_statements(required_imports: set[str]) -> str:
         else:
             plain_imports.add(stmt)
     
-    # 生成输出
+    # Generate output
     lines = []
     
-    # 先输出 import 语句
+    # Output import statements first
     for stmt in sorted(plain_imports):
         lines.append(stmt)
     
-    # 再输出 from import 语句
+    # Then output from import statements
     for module in sorted(from_imports.keys()):
         symbols = sorted(from_imports[module])
         if len(symbols) == 1:

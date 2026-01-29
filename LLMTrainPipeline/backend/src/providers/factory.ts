@@ -8,7 +8,7 @@ import {
     Scanner,
 } from './interfaces.js';
 
-// Provider 实现导入
+// Provider implementation imports
 import { LocalSingleCompute } from './compute/local-single.js';
 import { LoraTrainer } from './trainer/lora.js';
 import { FullFinetuneTrainer } from './trainer/full-finetune.js';
@@ -30,7 +30,7 @@ export class ProviderFactory {
             case 'local_single':
                 return new LocalSingleCompute();
             case 'local_multi_fsdp':
-                // 占位实现，暂时返回单 GPU
+                // Placeholder implementation, temporarily returning single GPU
                 console.warn('local_multi_fsdp not implemented, falling back to local_single');
                 return new LocalSingleCompute();
             default:
@@ -63,7 +63,7 @@ export class ProviderFactory {
             case 'filesystem':
                 return new FilesystemStore(this.config.storage.artifactsDir);
             case 's3':
-                // 占位实现
+                // Placeholder implementation
                 console.warn('S3 store not implemented, falling back to filesystem');
                 return new FilesystemStore(this.config.storage.artifactsDir);
             default:
@@ -87,7 +87,7 @@ export class ProviderFactory {
     }
 }
 
-// 导出便捷函数
+// Export convenience function
 let defaultFactory: ProviderFactory | null = null;
 
 export function getProviderFactory(config?: Config): ProviderFactory {

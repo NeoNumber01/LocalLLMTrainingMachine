@@ -1,4 +1,4 @@
-# 默认配置
+# Default configuration
 training:
   lr: "2e-4"
   epochs: 3
@@ -27,7 +27,7 @@ eval:
   samples: 20
   timeout: 60
   maxTokens: 256
-  maxTestsPerProblem: 10  # 限制每个问题的测试用例数量，加速评估
+  maxTestsPerProblem: 10  # Limit test cases per problem to accelerate evaluation
 
 providers:
   compute: "local_single"

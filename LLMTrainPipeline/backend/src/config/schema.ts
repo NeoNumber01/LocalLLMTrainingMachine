@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-// Training 配置 Schema
+// Training config Schema
 export const TrainingConfigSchema = z.object({
-    // 基础训练参数
+    // Basic training parameters
     lr: z.string().default('2e-4'),
     epochs: z.number().int().min(1).default(3),
     batchSize: z.number().int().min(1).default(1),
@@ -14,22 +14,22 @@ export const TrainingConfigSchema = z.object({
     gradAccum: z.number().int().min(1).default(8),
     precision: z.enum(['bf16', 'fp16', 'fp32', 'none']).default('none'),
 
-    // 核心训练参数 (新增)
+    // Core training parameters (new)
     seed: z.number().int().default(42),
     loggingSteps: z.number().int().min(1).default(10),
     saveSteps: z.number().int().min(1).default(100),
     saveTotalLimit: z.number().int().min(1).default(3),
     gradientClipping: z.number().min(0).default(1.0),
 
-    // Warmup 配置 (新增)
+    // Warmup configuration (new)
     warmupType: z.enum(['ratio', 'steps']).default('ratio'),
     warmupSteps: z.number().int().min(0).default(0),
 
-    // 验证配置 (新增)
+    // Validation configuration (new)
     evalStrategy: z.enum(['no', 'steps', 'epoch']).default('epoch'),
     evalSteps: z.number().int().min(1).default(200),
 
-    // 高级训练选项 (新增)
+    // Advanced training options (new)
     earlyStoppingEnabled: z.boolean().default(false),
     earlyStoppingPatience: z.number().int().min(1).default(3),
     earlyStoppingThreshold: z.number().min(0).default(0.0),
@@ -37,30 +37,30 @@ export const TrainingConfigSchema = z.object({
     metricForBestModel: z.string().default('loss'),
 });
 
-// LoRA 配置 Schema
+// LoRA config Schema
 export const LoraConfigSchema = z.object({
     enabled: z.boolean().default(true),
     rank: z.number().int().min(1).default(16),
     alpha: z.number().int().min(1).default(32),
     targetModules: z.array(z.string()).default(['q_proj', 'v_proj']),
     quantization: z.enum(['4bit', '8bit', 'none']).default('4bit'),
-    // LoRA 扩展参数 (新增)
+    // LoRA extended parameters (new)
     dropout: z.number().min(0).max(1).default(0.05),
     bias: z.enum(['none', 'all', 'lora_only']).default('none'),
 });
 
-// Eval 配置 Schema
+// Eval config Schema
 export const EvalConfigSchema = z.object({
     evaluator: z.enum(['pass_at_k', 'perplexity', 'accuracy']).default('pass_at_k'),
     k: z.string().default('1,5,10'),
     temperature: z.number().min(0).max(2).default(0.2),
     samples: z.number().int().min(1).default(20),
-    numSamples: z.number().int().min(1).optional(),  // 用户配置的采样数量
+    numSamples: z.number().int().min(1).optional(),  // User-configured sample count
     timeout: z.number().int().min(1).default(10),
     maxTokens: z.number().int().min(64).default(256),
-    memoryLimit: z.number().int().min(256).optional(),  // 内存限制 (MB)
-    generateReport: z.boolean().optional(),  // 是否生成学术报告
-    saveFailureCases: z.boolean().optional(),  // 是否保存失败案例
+    memoryLimit: z.number().int().min(256).optional(),  // Memory limit (MB)
+    generateReport: z.boolean().optional(),  // Whether to generate academic report
+    saveFailureCases: z.boolean().optional(),  // Whether to save failure cases
 
     // Feature flags for extended evaluation
     enableFuzzing: z.boolean().default(false),
@@ -70,11 +70,11 @@ export const EvalConfigSchema = z.object({
     enableComplexityTest: z.boolean().default(false),
     complexityScales: z.array(z.number()).default([100, 1000, 10000]),
     enableCodeQuality: z.boolean().default(true),
-    // 每个问题的最大测试用例数（限制超长测试集，加速评估）
+    // Max test cases per problem (limit long test sets, speed up evaluation)
     maxTestsPerProblem: z.number().int().min(1).default(10),
 });
 
-// Provider 配置 Schema
+// Provider config Schema
 export const ProvidersConfigSchema = z.object({
     compute: z.enum(['local_single', 'local_multi_fsdp']).default('local_single'),
     trainer: z.enum(['lora', 'full_finetune']).default('lora'),
@@ -83,7 +83,7 @@ export const ProvidersConfigSchema = z.object({
     cache: z.enum(['memory_ttl', 'sqlite_cache']).default('memory_ttl'),
 });
 
-// Storage 配置 Schema
+// Storage config Schema
 export const StorageConfigSchema = z.object({
     baseDir: z.string().default('./storage'),
     modelsDir: z.string().default('./storage/models'),
@@ -95,12 +95,12 @@ export const StorageConfigSchema = z.object({
     reportsDir: z.string().default('./storage/reports'),
 });
 
-// Cache 配置 Schema
+// Cache config Schema
 export const CacheConfigSchema = z.object({
     ttlSeconds: z.number().int().min(0).default(300),
 });
 
-// 完整配置 Schema
+// Complete config Schema
 export const ConfigSchema = z.object({
     training: TrainingConfigSchema.default({}),
     lora: LoraConfigSchema.default({}),
@@ -110,7 +110,7 @@ export const ConfigSchema = z.object({
     cache: CacheConfigSchema.default({}),
 });
 
-// 类型导出
+// Type exports
 export type TrainingConfig = z.infer<typeof TrainingConfigSchema>;
 export type LoraConfig = z.infer<typeof LoraConfigSchema>;
 export type EvalConfig = z.infer<typeof EvalConfigSchema>;

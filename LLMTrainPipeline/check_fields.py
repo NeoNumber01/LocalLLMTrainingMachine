@@ -2,7 +2,7 @@ import json
 with open(r'backend/storage/datasets/stage2 version2/test02-01.jsonl','r',encoding='utf-8') as f:
     d=json.loads(f.readline())
     
-print('所有字段:')
+print('All fields:')
 for k in sorted(d.keys()):
     v = d[k]
     t = type(v).__name__

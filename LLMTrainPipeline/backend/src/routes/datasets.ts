@@ -6,11 +6,11 @@ import { prisma } from '../db/prisma-client.js';
 
 export async function datasetsRoutes(fastify: FastifyInstance) {
 
-    // GET /api/datasets - 获取所有数据集
+    // GET /api/datasets - Get all datasets
     fastify.get('/', {
         schema: {
             tags: ['Datasets'],
-            summary: '获取所有数据集',
+            summary: 'Get all datasets',
         },
     }, async (request, reply) => {
         const datasets = await prisma.dataset.findMany({
@@ -35,11 +35,11 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
         return response;
     });
 
-    // GET /api/datasets/:id - 获取数据集详情
+    // GET /api/datasets/:id - Get dataset details
     fastify.get<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Datasets'],
-            summary: '获取数据集详情',
+            summary: 'Get dataset details',
         },
     }, async (request, reply) => {
         const dataset = await prisma.dataset.findUnique({
@@ -64,11 +64,11 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // GET /api/datasets/:id/preview - 预览数据集样本
+    // GET /api/datasets/:id/preview - Preview dataset samples
     fastify.get<{ Params: { id: string } }>('/:id/preview', {
         schema: {
             tags: ['Datasets'],
-            summary: '预览数据集样本',
+            summary: 'Preview dataset samples',
         },
     }, async (request, reply) => {
         const dataset = await prisma.dataset.findUnique({
@@ -79,7 +79,7 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Dataset not found' });
         }
 
-        // 读取真实数据集文件
+        // Read actual dataset file
         const fs = await import('fs');
         const path = await import('path');
         const readline = await import('readline');
@@ -97,7 +97,7 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
             let lineCount = 0;
             let emptyRows = 0;
 
-            // 读取 JSONL 文件前 1000 行进行分析
+            // Read first 1000 lines of JSONL file for analysis
             const fileStream = fs.createReadStream(datasetPath);
             const rl = readline.createInterface({
                 input: fileStream,
@@ -122,17 +122,17 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
                 try {
                     const obj = JSON.parse(trimmed);
 
-                    // 收集 schema 字段
+                    // Collect schema fields
                     Object.keys(obj).forEach(key => schemaFields.add(key));
 
-                    // 收集样本（最多 5 个）
+                    // Collect samples (max 5)
                     if (samples.length < maxSamplesToShow) {
-                        // 支持多种格式 - 拓展的字段列表
+                        // Support multiple formats - extended field list
                         let prompt = '';
                         let completion = '';
                         let detectedFormat = 'unknown';
 
-                        // === 对话格式 ===
+                        // === Conversation format ===
                         if (obj.messages && Array.isArray(obj.messages)) {
                             detectedFormat = 'messages';
                             const userMsg = obj.messages.find((m: any) => m.role === 'user');
@@ -148,31 +148,31 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
                             if (humanConv) prompt = String(humanConv.value || humanConv.content || '');
                             if (gptConv) completion = String(gptConv.value || gptConv.content || '');
                         }
-                        // === 指令格式 ===
+                        // === Instruction format ===
                         else if (obj.instruction !== undefined) {
                             detectedFormat = 'alpaca/instruction';
                             const input = obj.input ? `\n\nInput: ${obj.input}` : '';
                             prompt = String(obj.instruction) + input;
-                            // 尝试多个输出字段
+                            // Try multiple output fields
                             completion = String(obj.output || obj.response || obj.answer || obj.reference || '');
                         }
-                        // === 代码生成格式 ===
+                        // === Code generation format ===
                         else if (obj.prompt !== undefined) {
-                            // TACO/HumanEval/CodeContests 等代码类数据集
+                            // TACO/HumanEval/CodeContests and other code datasets
                             detectedFormat = 'code/prompt';
                             prompt = String(obj.prompt);
                             if (obj.starter_code) {
                                 prompt += `\n\nStarter code:\n${obj.starter_code}`;
                             }
-                            // 尝试多个代码字段
+                            // Try multiple code fields
                             completion = String(obj.code || obj.reference || obj.solution ||
                                 obj.canonical_solution || obj.completion || '');
-                            // 如果 solutions 是数组
+                            // If solutions is an array
                             if (!completion && Array.isArray(obj.solutions) && obj.solutions.length > 0) {
                                 completion = String(obj.solutions[0]);
                             }
                         }
-                        // === 问答格式 ===
+                        // === Q&A format ===
                         else if (obj.question !== undefined) {
                             detectedFormat = 'qa';
                             if (obj.context) {
@@ -180,7 +180,7 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
                             } else {
                                 prompt = String(obj.question);
                             }
-                            // 处理 answers 可能是数组
+                            // Handle answers which may be an array
                             if (Array.isArray(obj.answers) && obj.answers.length > 0) {
                                 const ans = obj.answers[0];
                                 completion = String(typeof ans === 'object' ? ans.text : ans);
@@ -188,25 +188,25 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
                                 completion = String(obj.answer || obj.response || '');
                             }
                         }
-                        // === 摘要格式 ===
+                        // === Summarization format ===
                         else if (obj.document !== undefined || obj.article !== undefined) {
                             detectedFormat = 'summarization';
                             prompt = String(obj.document || obj.article || obj.text || '');
                             completion = String(obj.summary || obj.highlights || obj.abstract || '');
                         }
-                        // === 翻译格式 ===
+                        // === Translation format ===
                         else if (obj.source !== undefined && obj.target !== undefined) {
                             detectedFormat = 'translation';
                             prompt = String(obj.source);
                             completion = String(obj.target);
                         }
-                        // === 纯文本格式 (兜底) ===
+                        // === Plain text format (fallback) ===
                         else if (obj.text !== undefined) {
                             detectedFormat = 'text';
                             prompt = '[Text sample]';
                             completion = String(obj.text);
                         }
-                        // === ChatML 独立字段格式 ===
+                        // === ChatML individual fields format ===
                         else if (obj.user !== undefined && obj.assistant !== undefined) {
                             detectedFormat = 'chatml';
                             prompt = String(obj.user);
@@ -221,19 +221,19 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
                         }
                     }
 
-                    // 累计长度
+                    // Accumulate length
                     totalLength += trimmed.length;
                     lineCount++;
                 } catch (parseErr) {
-                    // 跳过解析失败的行
+                    // Skip lines that fail to parse
                     emptyRows++;
                 }
             }
 
-            // 计算统计信息
+            // Calculate statistics
             const avgLength = lineCount > 0 ? Math.round(totalLength / lineCount) : 0;
 
-            // 生成 schema
+            // Generate schema
             const schema = Array.from(schemaFields).map(field => ({
                 field,
                 valid: true,
@@ -242,9 +242,9 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
             const preview: DatasetPreview = {
                 schema,
                 stats: {
-                    totalTokens: `~${Math.round(totalLength / 4)}`, // 粗略估计 token 数
+                    totalTokens: `~${Math.round(totalLength / 4)}`, // Rough token count estimate
                     avgLength,
-                    duplicates: '0%', // 需要更复杂的逻辑来检测
+                    duplicates: '0%', // Requires more complex logic to detect
                     emptyRows,
                 },
                 samples,
@@ -257,11 +257,11 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // POST /api/datasets/import - 导入数据集
+    // POST /api/datasets/import - Import dataset
     fastify.post('/import', {
         schema: {
             tags: ['Datasets'],
-            summary: '导入数据集',
+            summary: 'Import dataset',
             body: {
                 type: 'object',
                 properties: {
@@ -274,7 +274,7 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         const body = request.body as { path: string; name?: string; type?: string };
 
-        // 计算文件大小和样本数量
+        // Calculate file size and sample count
         const fs = await import('fs');
         const pathModule = await import('path');
         let samples = 0;
@@ -282,17 +282,17 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
 
         if (fs.existsSync(body.path)) {
             const stats = fs.statSync(body.path);
-            // 计算大小
+            // Calculate size
             const bytes = stats.size;
             if (bytes < 1024) size = `${bytes} B`;
             else if (bytes < 1024 * 1024) size = `${(bytes / 1024).toFixed(1)} KB`;
             else if (bytes < 1024 * 1024 * 1024) size = `${(bytes / 1024 / 1024).toFixed(1)} MB`;
             else size = `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 
-            // 计算样本数量
+            // Calculate sample count
             try {
                 if (body.path.endsWith('.jsonl')) {
-                    // JSONL: 使用流式读取计算行数，避免大文件内存溢出
+                    // JSONL: Use streaming read to count lines, avoiding memory overflow for large files
                     const fileStream = fs.createReadStream(body.path);
                     const rl = (await import('readline')).createInterface({
                         input: fileStream,
@@ -303,9 +303,9 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
                         if (line.trim()) samples++;
                     }
                 } else if (body.path.endsWith('.json')) {
-                    // JSON: 尝试解析为数组
-                    // 如果文件太大，可能无法直接 JSON.parse，这里做一个简单的尝试
-                    // 对于非常大的 JSON 数组文件，通常建议转换为 JSONL
+                    // JSON: Try to parse as array
+                    // If file is too large, cannot directly JSON.parse, here we make a simple attempt
+                    // For very large JSON array files, it's usually recommended to convert to JSONL
                     if (bytes < 50 * 1024 * 1024) { // < 50MB
                         const content = fs.readFileSync(body.path, 'utf-8');
                         const json = JSON.parse(content);
@@ -313,8 +313,8 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
                             samples = json.length;
                         }
                     } else {
-                        // 大文件，尝试流式解析或假设是 JSONL 格式的 .json 文件
-                        // 这里做个简单的回退：按行计算 (假设格式化良好的 JSON 数组每项一行，或者它其实是 JSONL)
+                        // Large file, try streaming parse or assume it's a JSONL format .json file
+                        // Here we do a simple fallback: count by lines (assuming well-formatted JSON array with one item per line, or it's actually JSONL)
                         const fileStream = fs.createReadStream(body.path);
                         const rl = (await import('readline')).createInterface({
                             input: fileStream,
@@ -325,23 +325,23 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
                         for await (const line of rl) {
                             if (line.trim()) lineCount++;
                         }
-                        // 粗略估计：如果是格式化的 JSON 数组 `[\n  {...},\n  {...}\n]`
-                        // 行数会比样本数多很多。这里保守起见，如果不是 JSONL，不设 samples 或设为 0
-                        // 让用户知道可能不准确。但如果是误命名为 .json 的 JSONL，则行数是对的。
-                        // 简单起见，我们假设大 .json 文件多半是误命名的 JSONL，或者这里无法高效统计
+                        // Rough estimate: if it's a formatted JSON array `[\n  {...},\n  {...}\n]`
+                        // Line count will be much more than sample count. Here we are conservative, if not JSONL, don't set samples or set to 0
+                        // Let user know it might be inaccurate. But if it's a .json mislabeled as JSONL, then line count is correct.
+                        // For simplicity, we assume large .json files are mostly mislabeled JSONL, or we cannot efficiently count here
                         samples = lineCount;
                     }
                 } else if (body.path.endsWith('.parquet')) {
-                    // Parquet 暂不支持读取行数
+                    // Parquet does not support reading row count yet
                     samples = 0;
                 }
             } catch (e) {
                 console.error('Failed to count samples:', e);
-                // 失败时不中断导入，samples 默认为 0
+                // Don't interrupt import on failure, samples defaults to 0
             }
         }
 
-        // 创建数据集记录
+        // Create dataset record
         const dataset = await prisma.dataset.create({
             data: {
                 name: body.name || pathModule.basename(body.path) || 'imported',
@@ -359,18 +359,18 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
         return { id: dataset.id, status: 'ready', samples };
     });
 
-    // POST /api/datasets/rescan - 重新扫描数据集目录
+    // POST /api/datasets/rescan - Rescan datasets directory
     fastify.post('/rescan', {
         schema: {
             tags: ['Datasets'],
-            summary: '重新扫描数据集目录',
+            summary: 'Rescan datasets directory',
         },
     }, async (request, reply) => {
         const config = getConfig();
         const factory = getProviderFactory(config);
         const scanner = factory.getScanner();
 
-        // P2-FIX: 从 Settings 读取动态路径，fallback 到默认配置
+        // P2-FIX: Read dynamic path from Settings, fallback to default config
         let datasetsDir = config.storage.trainDatasetsDir;
         try {
             const watchFoldersSetting = await prisma.setting.findUnique({
@@ -386,7 +386,7 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
             console.warn('[Datasets] Failed to read watchFolders setting:', e);
         }
 
-        // 同时扫描训练数据集和评估数据集目录
+        // Scan both training datasets and evaluation datasets directories
         const [trainResult, evalResult] = await Promise.all([
             scanner.scanDatasets(datasetsDir, 'Train'),
             scanner.scanDatasets(config.storage.evalDatasetsDir, 'Eval'),
@@ -401,11 +401,11 @@ export async function datasetsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // DELETE /api/datasets/:id - 删除数据集记录（不删除本地文件）
+    // DELETE /api/datasets/:id - Delete dataset record (does not delete local files)
     fastify.delete<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Datasets'],
-            summary: '删除数据集记录（不删除本地文件）',
+            summary: 'Delete dataset record (does not delete local files)',
         },
     }, async (request, reply) => {
         const dataset = await prisma.dataset.findUnique({

@@ -1,20 +1,20 @@
 /**
  * Adapter Safety Guard
  * 
- * 提供以下保护功能:
- * 1. 训练完成后自动备份 adapter 到安全目录
- * 2. 启动时验证 adapter 文件完整性
- * 3. 定期检查 adapter 健康状态
+ * Provides the following protection features:
+ * 1. Auto backup adapter to safe directory after training completes
+ * 2. Validate adapter file integrity on startup
+ * 3. Periodically check adapter health status
  */
 
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../db/prisma-client.js';
 
-// 备份目录 - 这个目录不会被 git 忽略
+// Backup directory - this directory won't be ignored by git
 const BACKUP_DIR = './storage/adapter_backups';
 
-// 必需的 adapter 文件列表
+// Required adapter files list
 const REQUIRED_ADAPTER_FILES = [
     'adapter_config.json',
     'adapter_model.safetensors',
@@ -38,7 +38,7 @@ export interface AdapterHealthStatus {
 }
 
 /**
- * 检查单个 adapter 的健康状态
+ * Check health status of a single adapter
  */
 export function checkAdapterHealth(adapterPath: string, adapterName: string, adapterId: string): AdapterHealthStatus {
     const status: AdapterHealthStatus = {
@@ -51,7 +51,7 @@ export function checkAdapterHealth(adapterPath: string, adapterName: string, ada
         hasBackup: false,
     };
 
-    // 检查目录是否存在
+    // Check if directory exists
     if (!fs.existsSync(adapterPath)) {
         status.missingFiles = [...REQUIRED_ADAPTER_FILES];
         return status;
@@ -59,7 +59,7 @@ export function checkAdapterHealth(adapterPath: string, adapterName: string, ada
 
     status.exists = true;
 
-    // 检查必需文件
+    // Check required files
     for (const file of REQUIRED_ADAPTER_FILES) {
         const filePath = path.join(adapterPath, file);
         if (!fs.existsSync(filePath)) {
@@ -69,7 +69,7 @@ export function checkAdapterHealth(adapterPath: string, adapterName: string, ada
 
     status.isComplete = status.missingFiles.length === 0;
 
-    // 检查是否有备份
+    // Check if backup exists
     const backupPath = path.join(BACKUP_DIR, adapterName);
     if (fs.existsSync(backupPath)) {
         status.hasBackup = true;
@@ -80,7 +80,7 @@ export function checkAdapterHealth(adapterPath: string, adapterName: string, ada
 }
 
 /**
- * 检查所有 adapters 的健康状态
+ * Check health status of all adapters
  */
 export async function checkAllAdaptersHealth(): Promise<AdapterHealthStatus[]> {
     const adapters = await prisma.adapter.findMany();
@@ -97,21 +97,21 @@ export async function checkAllAdaptersHealth(): Promise<AdapterHealthStatus[]> {
 }
 
 /**
- * 备份 adapter 到安全目录
+ * Backup adapter to safe directory
  */
 export function backupAdapter(sourcePath: string, adapterName: string): { success: boolean; backupPath?: string; error?: string } {
     try {
-        // 确保备份目录存在
+        // Ensure backup directory exists
         if (!fs.existsSync(BACKUP_DIR)) {
             fs.mkdirSync(BACKUP_DIR, { recursive: true });
         }
 
-        // 创建备份目录
+        // Create backup directory
         const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const backupName = `${adapterName}_${timestamp}`;
         const backupPath = path.join(BACKUP_DIR, backupName);
 
-        // 如果备份已存在，添加序号
+        // If backup already exists, add sequence number
         let finalBackupPath = backupPath;
         let counter = 1;
         while (fs.existsSync(finalBackupPath)) {
@@ -119,7 +119,7 @@ export function backupAdapter(sourcePath: string, adapterName: string): { succes
             counter++;
         }
 
-        // 复制所有文件
+        // Copy all files
         if (!fs.existsSync(sourcePath)) {
             return { success: false, error: `Source path does not exist: ${sourcePath}` };
         }
@@ -135,7 +135,7 @@ export function backupAdapter(sourcePath: string, adapterName: string): { succes
             if (stat.isFile()) {
                 fs.copyFileSync(srcFile, destFile);
             } else if (stat.isDirectory() && !file.startsWith('checkpoint-')) {
-                // 不备份 checkpoints（太大了）
+                // Don't backup checkpoints (too large)
                 fs.cpSync(srcFile, destFile, { recursive: true });
             }
         }
@@ -150,7 +150,7 @@ export function backupAdapter(sourcePath: string, adapterName: string): { succes
 }
 
 /**
- * 从备份恢复 adapter
+ * Restore adapter from backup
  */
 export function restoreAdapterFromBackup(backupPath: string, targetPath: string): { success: boolean; error?: string } {
     try {
@@ -158,12 +158,12 @@ export function restoreAdapterFromBackup(backupPath: string, targetPath: string)
             return { success: false, error: `Backup path does not exist: ${backupPath}` };
         }
 
-        // 创建目标目录
+        // Create target directory
         if (!fs.existsSync(targetPath)) {
             fs.mkdirSync(targetPath, { recursive: true });
         }
 
-        // 复制文件
+        // Copy files
         const files = fs.readdirSync(backupPath);
         for (const file of files) {
             const srcFile = path.join(backupPath, file);
@@ -187,7 +187,7 @@ export function restoreAdapterFromBackup(backupPath: string, targetPath: string)
 }
 
 /**
- * 启动时验证所有 adapters
+ * Validate all adapters on startup
  */
 export async function validateAdaptersOnStartup(): Promise<void> {
     console.log('[AdapterGuard] Validating adapters on startup...');
@@ -223,12 +223,12 @@ export async function validateAdaptersOnStartup(): Promise<void> {
 }
 
 /**
- * 自动备份新训练的 adapter
+ * Auto backup newly trained adapter
  */
 export async function autoBackupNewAdapter(runId: string, adapterPath: string, adapterName: string): Promise<void> {
     console.log(`[AdapterGuard] Auto-backing up new adapter: ${adapterName}`);
 
-    // 验证 adapter 完整性
+    // Validate adapter integrity
     const status = checkAdapterHealth(adapterPath, adapterName, runId);
 
     if (!status.isComplete) {
@@ -236,7 +236,7 @@ export async function autoBackupNewAdapter(runId: string, adapterPath: string, a
         return;
     }
 
-    // 执行备份
+    // Execute backup
     const result = backupAdapter(adapterPath, adapterName);
 
     if (result.success) {

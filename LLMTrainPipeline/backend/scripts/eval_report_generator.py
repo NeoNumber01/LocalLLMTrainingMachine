@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Evaluation Report Generator - 生成标准化评测报告
+Evaluation Report Generator - Generate standardized evaluation reports
 
-格式支持:
-- Markdown: 适合论文/课程报告
-- HTML: 适合工程仪表盘
-- JSON: 机器可读
+Format support:
+- Markdown: Suitable for papers/course reports
+- HTML: Suitable for engineering dashboards
+- JSON: Machine readable
 
-报告结构遵循 P0/P1 标准:
-① Overview - 模型/数据集/参数
+Report structure follows P0/P1 standards:
+① Overview - Model/Dataset/Parameters
 ② Core Metrics - Pass@k, Compile Rate, Runtime
-③ Error Analysis - 错误分布
-④ Code Quality - 接口合规/代码结构
-⑤ Segment Analysis - 按难度/类型分析
-⑥ Failure Cases - 失败案例
-⑦ Evaluation Protocol - 评测方法论
+③ Error Analysis - Error distribution
+④ Code Quality - Interface compliance/Code structure
+⑤ Segment Analysis - Analysis by difficulty/category
+⑥ Failure Cases - Failure case examples
+⑦ Evaluation Protocol - Evaluation methodology
 """
 
 import json
@@ -27,7 +27,7 @@ from pathlib import Path
 
 @dataclass
 class EvalReportData:
-    """评测报告数据结构"""
+    """Evaluation report data structure"""
     # Overview
     model_name: str
     dataset_name: str
@@ -82,7 +82,7 @@ class EvalReportData:
 
 
 class EvalReportGenerator:
-    """评测报告生成器"""
+    """Evaluation report generator"""
     
     def __init__(self, output_dir: str):
         self.output_dir = Path(output_dir)
@@ -90,7 +90,7 @@ class EvalReportGenerator:
     
     @staticmethod
     def from_eval_summary(summary_path: str) -> 'EvalReportData':
-        """从 eval_summary.json 加载数据"""
+        """Load data from eval_summary.json"""
         with open(summary_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -120,7 +120,7 @@ class EvalReportGenerator:
             import_error_rate=data.get('error_distribution', {}).get('import_error_rate', 0.0),
             memory_error_rate=data.get('error_distribution', {}).get('memory_error_rate', 0.0),
             
-            # P0-FIX: 从 code_quality 字段读取真实数据
+            # P0-FIX: Read real data from code_quality field
             interface_compliance_rate=data.get('code_quality', {}).get('interface_compliance_rate', 0.0),
             extra_io_rate=data.get('code_quality', {}).get('extra_io_rate', 0.0),
             avg_code_length=data.get('code_quality', {}).get('avg_code_length', 0.0),
@@ -132,7 +132,7 @@ class EvalReportGenerator:
             # P1: Per-problem pass distribution
             per_problem_stats=data.get('per_problem_stats'),
             
-            failure_examples=data.get('sample_results', [])[:10],  # 最多10个失败案例
+            failure_examples=data.get('sample_results', [])[:10],  # Max 10 failure cases
             
             # P0: Failure examples by error type
             failure_examples_by_type=data.get('failure_examples_by_type'),
@@ -143,7 +143,7 @@ class EvalReportGenerator:
         )
     
     def generate_markdown(self, data: EvalReportData) -> str:
-        """生成 Markdown 格式报告"""
+        """Generate Markdown format report"""
         report = []
         
         # Title
@@ -155,12 +155,12 @@ class EvalReportGenerator:
         report.append("| Field | Value |")
         report.append("|-------|-------|")
         report.append(f"| Model | {data.model_name if data.model_name != 'Unknown' else 'Unknown (check checkpoint_path)'} |")
-        # P0-FIX: 0 problems 显示为 N/A
+        # P0-FIX: Display 0 problems as N/A
         problems_str = f"{data.total_problems} problems" if data.total_problems > 0 else "N/A (not logged in report)"
         report.append(f"| Dataset | {data.dataset_name} ({problems_str}) |")
         report.append(f"| num_samples | {data.num_samples} |")
         report.append(f"| temperature | {data.temperature} |")
-        # P1-FIX: None seed 提示需要设置
+        # P1-FIX: None seed prompts user to set one
         seed_str = str(data.seed) if data.seed is not None else "None (⚠️ consider setting for reproducibility)"
         report.append(f"| seed | {seed_str} |")
         report.append(f"| Eval Run ID | `{data.eval_run_id}` |")
@@ -194,7 +194,7 @@ class EvalReportGenerator:
         report.append("## ④ Code Quality\n")
         report.append("| Metric | Value |")
         report.append("|--------|-------|")
-        # P0-FIX: 值为 0 时显示 N/A 而不是 0，避免误导
+        # P0-FIX: Display N/A instead of 0 when value is 0 to avoid misleading
         ic_val = f"{data.interface_compliance_rate:.1f}%" if data.interface_compliance_rate > 0 else "N/A (not logged)"
         eio_val = f"{data.extra_io_rate:.1f}%" if data.extra_io_rate > 0 else "N/A"
         acl_val = f"{data.avg_code_length:.0f} chars" if data.avg_code_length > 0 else "N/A (not logged)"
@@ -204,7 +204,7 @@ class EvalReportGenerator:
         report.append(f"| Avg Code Length | {acl_val} |")
         report.append(f"| Avg Lines | {aln_val} |\n")
         
-        # Extra I/O 详细解释
+        # Extra I/O detailed explanation
         if data.extra_io_rate > 0:
             report.append("> **📌 About Extra I/O Rate**")
             report.append("> ")
@@ -239,7 +239,7 @@ class EvalReportGenerator:
             report.append(f"| Total Problems | {data.per_problem_stats.get('total_problems', 0)} |")
             report.append("")
         
-        # P0: Failure Examples by Error Type (新实现 - 多样化采样)
+        # P0: Failure Examples by Error Type (new implementation - diverse sampling)
         if data.failure_examples_by_type:
             report.append("## ⑥ Failure Case Examples (by Error Type)\n")
             report.append("> Diverse sampling: different tasks selected to show variety of failures\n")
@@ -265,21 +265,21 @@ class EvalReportGenerator:
                         difficulty = ex.get('difficulty', 'N/A')
                         report.append(f"**Example {i}**: Task `{task_id}` (Difficulty: {difficulty})")
                         
-                        # 显示完整 Prompt（使用 > 引用块格式，更安全）
+                        # Display complete Prompt (using > quote block format, safer)
                         prompt = ex.get('prompt_preview', '')
                         if prompt:
                             report.append(f"- **Prompt**:")
-                            # 使用引用块格式，每行前加 > 
+                            # Use quote block format, prefix each line with >
                             quoted_prompt = '\n'.join(f"> {line}" for line in prompt.split('\n'))
                             report.append(quoted_prompt)
                         
-                        # 显示完整 Traceback（使用 4 个反引号避免内部反引号冲突）
+                        # Display complete Traceback (use 4 backticks to avoid internal backtick conflicts)
                         traceback = ex.get('traceback_preview', '')
                         if traceback:
                             report.append("- **Error**:")
                             report.append(f"````\n{traceback}\n````")
                         
-                        # 显示完整生成的代码（使用 4 个反引号避免 LLM 输出中的反引号破坏格式）
+                        # Display complete generated code (use 4 backticks to avoid LLM output backticks breaking format)
                         output = ex.get('output_preview', '')
                         if output:
                             report.append("- **Generated Output** (LLM raw response):")
@@ -289,12 +289,12 @@ class EvalReportGenerator:
             if not has_any_examples:
                 report.append("_No failure cases recorded in this evaluation run._\n")
         
-        # Fallback: 旧版失败案例显示（如果新版数据不存在）
+        # Fallback: Legacy failure case display (if new data doesn't exist)
         elif data.failure_examples:
             report.append("## ⑥ Failure Case Examples\n")
             report.append("> Showing up to 5 failure examples for error analysis\n")
             shown_count = 0
-            for i, case in enumerate(data.failure_examples[:10]):  # 遍历前10个找5个失败
+            for i, case in enumerate(data.failure_examples[:10]):  # Iterate first 10 to find 5 failures
                 if case.get('verdict') not in ['AC', 'passed'] and shown_count < 5:
                     shown_count += 1
                     error_type = case.get('error_type') or case.get('errorType') or 'Unknown'
@@ -307,13 +307,13 @@ class EvalReportGenerator:
                     report.append(f"- **Difficulty**: {difficulty}")
                     report.append(f"- **Verdict**: {verdict}")
                     
-                    # 展示错误信息（使用 4 个反引号避免冲突）
+                    # Display error message (use 4 backticks to avoid conflicts)
                     traceback = case.get('traceback', '')
                     if traceback:
                         report.append("- **Error**:")
                         report.append(f"````\n{traceback}\n````")
                     
-                    # 展示生成的代码（使用 4 个反引号避免 LLM 输出中的反引号破坏格式）
+                    # Display generated code (use 4 backticks to avoid LLM output backticks breaking format)
                     code = case.get('post_process_output') or case.get('raw_output') or case.get('code', '')
                     if code:
                         report.append("- **Generated Output**:")
@@ -326,7 +326,7 @@ class EvalReportGenerator:
             report.append("## ⑥ Failure Case Examples\n")
             report.append("_No sample results logged. Enable `saveFailureCases` in eval config to capture failure details._\n")
         
-        # ⑦ Evaluation Protocol (增强版 - P2 改进)
+        # ⑦ Evaluation Protocol (enhanced version - P2 improvement)
         report.append("## ⑦ Evaluation Protocol\n")
         report.append("### Generation Settings")
         report.append(f"- **Samples per task**: {data.num_samples}")
@@ -345,18 +345,18 @@ class EvalReportGenerator:
         return "\n".join(report)
     
     def generate_html(self, data: EvalReportData) -> str:
-        """生成 HTML 格式报告（增强版）"""
+        """Generate HTML format report (enhanced version)"""
         
-        # 生成分段统计 HTML
+        # Generate segment statistics HTML
         segment_html = self._generate_segment_html(data)
         
-        # 生成代码质量 HTML
+        # Generate code quality HTML
         code_quality_html = self._generate_code_quality_html(data)
         
-        # 生成失败案例 HTML
+        # Generate failure cases HTML
         failure_cases_html = self._generate_failure_cases_html(data)
         
-        # 获取判题超时设置
+        # Get judge timeout settings
         timeout_seconds = data.judge_settings.get('timeout_seconds', 10) if data.judge_settings else 10
         memory_limit = data.judge_settings.get('memory_limit_mb') if data.judge_settings else None
         memory_limit_str = f"{memory_limit}MB" if memory_limit else "No Limit"
@@ -495,7 +495,7 @@ class EvalReportGenerator:
         return html
     
     def _generate_segment_html(self, data: EvalReportData) -> str:
-        """生成分段统计 HTML"""
+        """Generate segment statistics HTML"""
         if not data.by_difficulty and not data.by_category and not data.per_problem_stats:
             return ""
         
@@ -561,8 +561,8 @@ class EvalReportGenerator:
         return '\n        '.join(html_parts)
     
     def _generate_code_quality_html(self, data: EvalReportData) -> str:
-        """生成代码质量 HTML"""
-        # P0-FIX: Extra I/O 详细解释
+        """Generate code quality HTML"""
+        # P0-FIX: Extra I/O detailed explanation
         extra_io_note = ''
         if data.extra_io_rate > 0:
             extra_io_note = f'''
@@ -588,9 +588,9 @@ class EvalReportGenerator:
         {extra_io_note}'''
     
     def _generate_failure_cases_html(self, data: EvalReportData) -> str:
-        """生成失败案例 HTML - 支持 P0 按错误类型分组"""
+        """Generate failure cases HTML - supports P0 grouping by error type"""
         
-        # P0: 优先使用按错误类型分组的数据
+        # P0: Prefer data grouped by error type
         if data.failure_examples_by_type:
             error_type_labels = {
                 'syntax_error': ('🔴 SyntaxError', '#fef2f2', '#fecaca'),
@@ -616,9 +616,9 @@ class EvalReportGenerator:
                 for i, ex in enumerate(examples[:3], 1):
                     task_id = ex.get('task_id', 'N/A')
                     difficulty = ex.get('difficulty', 'N/A')
-                    prompt_preview = ex.get('prompt_preview', '')  # 完整显示
-                    output_preview = ex.get('output_preview', '')  # 完整显示
-                    traceback = ex.get('traceback_preview', '')  # 完整显示
+                    prompt_preview = ex.get('prompt_preview', '')  # Display complete
+                    output_preview = ex.get('output_preview', '')  # Display complete
+                    traceback = ex.get('traceback_preview', '')  # Display complete
                     
                     html_parts.append(f'''
         <div class="error-card" style="background: {bg_color}; border-color: {border_color};">
@@ -649,11 +649,11 @@ class EvalReportGenerator:
             
             return '\n'.join(html_parts)
         
-        # Fallback: 旧版失败案例显示
+        # Fallback: Legacy failure case display
         if not data.failure_examples:
             return ""
         
-        # 只显示非 AC 的案例
+        # Only display non-AC cases
         failed_cases = [c for c in data.failure_examples if c.get('verdict') != 'AC'][:5]
         
         if not failed_cases:
@@ -689,15 +689,15 @@ class EvalReportGenerator:
         return '\n'.join(html_parts)
     
     def _escape_html(self, text: str) -> str:
-        """转义 HTML 特殊字符"""
+        """Escape HTML special characters"""
         return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     
     def generate_json(self, data: EvalReportData) -> str:
-        """生成 JSON 格式报告"""
+        """Generate JSON format report"""
         return json.dumps(asdict(data), indent=2, ensure_ascii=False)
     
     def save_reports(self, data: EvalReportData, prefix: str = "eval_report"):
-        """保存所有格式的报告"""
+        """Save reports in all formats"""
         # Markdown
         md_path = self.output_dir / f"{prefix}.md"
         with open(md_path, 'w', encoding='utf-8') as f:
@@ -722,14 +722,14 @@ class EvalReportGenerator:
 
 def generate_report_from_summary(summary_path: str, output_dir: str = None) -> Dict[str, str]:
     """
-    从 eval_summary.json 生成评测报告
+    Generate evaluation report from eval_summary.json
     
     Args:
-        summary_path: eval_summary.json 路径
-        output_dir: 输出目录，默认为 summary_path 同目录
+        summary_path: Path to eval_summary.json
+        output_dir: Output directory, defaults to same directory as summary_path
     
     Returns:
-        生成的报告文件路径 dict
+        Dict of generated report file paths
     """
     if output_dir is None:
         output_dir = os.path.dirname(summary_path)

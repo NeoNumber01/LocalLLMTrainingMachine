@@ -32,7 +32,7 @@ export class FullFinetuneTrainer implements TrainerProvider {
         };
 
         for (let step = 1; step <= totalSteps; step++) {
-            await new Promise(resolve => setTimeout(resolve, 80)); // 比 LoRA 慢
+            await new Promise(resolve => setTimeout(resolve, 80)); // Slower than LoRA
 
             const progress = step / totalSteps;
             const baseLoss = 3.0;

@@ -1,7 +1,7 @@
 import os
 
 # Directory containing the files
-source_dir = r"c:\Users\Shu Leo\Desktop\practical course\kabul-main\论文材料"
+source_dir = r"c:\Users\Shu Leo\Desktop\practical course\kabul-main\documentations"
 output_file = os.path.join(source_dir, "merged_documents.md")
 
 # List of files to merge (based on previous list_dir, filtering for .md and excluding the output file itself if it exists)
@@ -10,7 +10,7 @@ files_to_merge = [
     "research_paper_report.md",
     "research_paper_reportEnglish.md",
     "train_report.md",
-    "项目技术文档.md"
+    "Project_Technical_Documentation.md"
 ]
 
 def merge_files():

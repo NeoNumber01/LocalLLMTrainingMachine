@@ -10,7 +10,7 @@ import { autoBackupNewAdapter } from './adapter-guard.js';
 import { createNotification } from './notification-service.js';
 
 // ============================================================
-// P0-FIX: 批量日志缓冲器 - 解决 SQLite 高频写入压力
+// P0-FIX: Batch log buffer - resolve SQLite high-frequency write pressure
 // ============================================================
 interface LogEvent {
     runId: string;
@@ -30,25 +30,25 @@ class LogEventBuffer {
     }
 
     /**
-     * 添加日志事件到缓冲区
-     * 达到 maxSize 时自动刷新
+     * Add log event to buffer
+     * Auto flush when reaching maxSize
      */
     push(event: LogEvent): void {
         this.buffer.push(event);
 
-        // 首次添加时启动定时器
+        // Start timer on first add
         if (this.buffer.length === 1 && !this.flushTimer) {
             this.flushTimer = setTimeout(() => this.flush(), this.flushIntervalMs);
         }
 
-        // 达到上限立即刷新
+        // Flush immediately when limit is reached
         if (this.buffer.length >= this.maxSize) {
             this.flush();
         }
     }
 
     /**
-     * 批量写入缓冲区中的所有日志
+     * Batch write all logs in buffer
      */
     async flush(): Promise<void> {
         if (this.flushTimer) {
@@ -68,7 +68,7 @@ class LogEventBuffer {
             // console.log(`[LogEventBuffer] Flushed ${eventsToWrite.length} events`);
         } catch (error) {
             console.error('[LogEventBuffer] Failed to flush events:', error);
-            // 失败时尝试逐条写入以避免数据丢失
+            // Try writing one by one on failure to avoid data loss
             for (const event of eventsToWrite) {
                 try {
                     await prisma.runEvent.create({ data: event });
@@ -80,7 +80,7 @@ class LogEventBuffer {
     }
 
     /**
-     * 清空缓冲区（不写入）
+     * Clear buffer (without writing)
      */
     clear(): void {
         if (this.flushTimer) {
@@ -91,7 +91,7 @@ class LogEventBuffer {
     }
 }
 
-// 每个 Run 对应一个缓冲器
+// One buffer per Run
 const logBuffers = new Map<string, LogEventBuffer>();
 
 function getLogBuffer(runId: string): LogEventBuffer {
@@ -104,12 +104,12 @@ function getLogBuffer(runId: string): LogEventBuffer {
 async function removeLogBuffer(runId: string): Promise<void> {
     const buffer = logBuffers.get(runId);
     if (buffer) {
-        await buffer.flush(); // 确保所有日志都写入
+        await buffer.flush(); // Ensure all logs are written
         logBuffers.delete(runId);
     }
 }
 
-// 运行事件管理
+// Run event management
 const runEmitters = new Map<string, EventEmitter>();
 
 export function getRunEmitter(runId: string): EventEmitter {
@@ -127,7 +127,7 @@ export function removeRunEmitter(runId: string): void {
     }
 }
 
-// 简单任务队列
+// Simple task queue
 interface QueuedRun {
     runId: string;
     config: Config;
@@ -136,7 +136,7 @@ interface QueuedRun {
 const runQueue: QueuedRun[] = [];
 let isProcessing = false;
 
-// 追踪活跃的进程以便能够停止它们
+// Track active processes so they can be stopped
 import type { TrainerProvider, EvalProvider } from '../providers/interfaces.js';
 interface ActiveRun {
     trainer?: TrainerProvider;
@@ -144,11 +144,11 @@ interface ActiveRun {
 }
 const activeRuns = new Map<string, ActiveRun>();
 
-// Helper: 将前端的扁平 config 转换为嵌套结构
+// Helper: Convert frontend flat config to nested structure
 function prepareConfigOverride(configOverride: any): any {
     const nestedOverride: any = {};
 
-    // Training 配置
+    // Training config
     if (configOverride.lr !== undefined ||
         configOverride.epochs !== undefined ||
         configOverride.batchSize !== undefined ||
@@ -201,7 +201,7 @@ function prepareConfigOverride(configOverride: any): any {
         };
     }
 
-    // LoRA 配置
+    // LoRA config
     if (configOverride.useLora !== undefined ||
         configOverride.loraRank !== undefined ||
         configOverride.loraAlpha !== undefined ||
@@ -220,7 +220,7 @@ function prepareConfigOverride(configOverride: any): any {
         };
     }
 
-    // Eval 配置
+    // Eval config
     if (configOverride.k !== undefined ||
         configOverride.numSamples !== undefined ||
         configOverride.temperature !== undefined ||
@@ -251,12 +251,12 @@ function prepareConfigOverride(configOverride: any): any {
     return nestedOverride;
 }
 
-// P0-SAFETY: 恢复队列状态
+// P0-SAFETY: Restore queue state
 export async function restoreQueue(): Promise<void> {
     console.log('[RunExecutor] Restoring queue state...');
 
-    // 1. 处理意外中断的 running 任务 -> 恢复到队列继续执行（而非标记失败）
-    // 这样服务器重启（如 tsx watch 热重载）不会导致任务丢失
+    // 1. Handle unexpectedly interrupted running tasks -> restore to queue to continue execution (not mark failed)
+    // This way server restart (e.g. tsx watch hot reload) won't cause task loss
     const interruptedRuns = await prisma.run.findMany({
         where: { status: 'running' },
     });
@@ -264,7 +264,7 @@ export async function restoreQueue(): Promise<void> {
     for (const run of interruptedRuns) {
         console.log(`[RunExecutor] Restoring interrupted run ${run.id} to queue (will resume)`);
 
-        // 计算新的队列位置（放到队首优先执行）
+        // Calculate new queue position (put at front for priority execution)
         const minPositionRun = await prisma.run.findFirst({
             where: { status: 'queued', queuePosition: { not: null } },
             orderBy: { queuePosition: 'asc' },
@@ -276,7 +276,7 @@ export async function restoreQueue(): Promise<void> {
             data: {
                 status: 'queued',
                 queuePosition: newPosition,
-                // 保留 startedAt 以便追踪
+                // Keep startedAt for tracking
             },
         });
         await prisma.runEvent.create({
@@ -288,7 +288,7 @@ export async function restoreQueue(): Promise<void> {
         });
     }
 
-    // 2. 恢复 queued 任务到内存队列
+    // 2. Restore queued tasks to memory queue
     const queuedRuns = await prisma.run.findMany({
         where: { status: 'queued' },
         orderBy: { queuePosition: 'asc' },
@@ -306,7 +306,7 @@ export async function restoreQueue(): Promise<void> {
                 runQueue.push({ runId: run.id, config });
             } catch (e) {
                 console.error(`[RunExecutor] Failed to restore run ${run.id}:`, e);
-                // 标记为失败，避免卡在 queued
+                // Mark as failed to avoid stuck in queued
                 await prisma.run.update({
                     where: { id: run.id },
                     data: { status: 'failed' },
@@ -314,7 +314,7 @@ export async function restoreQueue(): Promise<void> {
             }
         }
 
-        // 如果队列不为空，启动处理
+        // If queue is not empty, start processing
         if (runQueue.length > 0) {
             processQueue();
         }
@@ -325,14 +325,14 @@ export async function enqueueRun(runId: string, profileName: string, configOverr
     const nestedOverride = prepareConfigOverride(configOverride);
     const config = resolveConfig(profileName, nestedOverride);
 
-    // 计算队列位置 - 获取当前最大位置 + 1
+    // Calculate queue position - get current max position + 1
     const maxPositionRun = await prisma.run.findFirst({
         where: { status: 'queued', queuePosition: { not: null } },
         orderBy: { queuePosition: 'desc' },
     });
     const newPosition = (maxPositionRun?.queuePosition ?? 0) + 1;
 
-    // 更新数据库中的队列位置
+    // Update queue position in database
     await prisma.run.update({
         where: { id: runId },
         data: { queuePosition: newPosition },
@@ -351,46 +351,46 @@ async function processQueue(): Promise<void> {
     isProcessing = true;
 
     try {
-        // P1-FIX: 读取最大并发数设置
+        // P1-FIX: Read max concurrent runs setting
         const maxConcurrent = await getMaxSimultaneousRuns();
 
         while (runQueue.length > 0) {
-            // 获取当前活跃运行数
+            // Get current active runs count
             const currentActive = activeRuns.size;
 
-            // 如果已达到最大并发数，等待
+            // If max concurrent reached, wait
             if (currentActive >= maxConcurrent) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 continue;
             }
 
-            // 计算可以启动的任务数
+            // Calculate number of tasks that can be started
             const slotsAvailable = maxConcurrent - currentActive;
             const jobsToStart = Math.min(slotsAvailable, runQueue.length);
 
-            // 并发启动多个任务
+            // Start multiple tasks concurrently
             const startPromises: Promise<void>[] = [];
             for (let i = 0; i < jobsToStart; i++) {
                 const job = runQueue.shift();
                 if (job) {
-                    // 使用不等待的方式启动任务，让它在后台运行
+                    // Use non-blocking way to start task, let it run in background
                     startPromises.push(executeRun(job.runId, job.config).catch(e => {
                         console.error(`[RunExecutor] Task ${job.runId} failed:`, e);
                     }));
                 }
             }
 
-            // 如果maxConcurrent > 1，并发启动后等待一小段时间再检查
-            // 如果maxConcurrent = 1，等待当前任务完成
+            // If maxConcurrent > 1, wait a short time after concurrent start before checking
+            // If maxConcurrent = 1, wait for current task to complete
             if (maxConcurrent === 1 && startPromises.length > 0) {
                 await Promise.all(startPromises);
             } else if (startPromises.length > 0) {
-                // 等待一小段时间让任务注册到activeRuns
+                // Wait a short time for tasks to register in activeRuns
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
-        // 等待所有活跃任务完成
+        // Wait for all active tasks to complete
         while (activeRuns.size > 0) {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -400,7 +400,7 @@ async function processQueue(): Promise<void> {
 }
 
 /**
- * P1-FIX: 获取最大并发运行数设置
+ * P1-FIX: Get max concurrent runs setting
  */
 async function getMaxSimultaneousRuns(): Promise<number> {
     try {
@@ -414,7 +414,7 @@ async function getMaxSimultaneousRuns(): Promise<number> {
     } catch (e) {
         console.error('[RunExecutor] Failed to read maxSimultaneousRuns:', e);
     }
-    return 1;  // 默认单任务
+    return 1;  // Default single task
 }
 
 async function executeRun(runId: string, config: Config): Promise<void> {
@@ -422,7 +422,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
     const factory = getProviderFactory(config);
 
     try {
-        // 更新状态为 running
+        // Update status to running
         await prisma.run.update({
             where: { id: runId },
             data: {
@@ -436,7 +436,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
             status: 'running',
         } as SSEEvent);
 
-        // 获取 run 信息
+        // Get run information
         const run = await prisma.run.findUnique({
             where: { id: runId },
             include: { model: true, dataset: true },
@@ -446,9 +446,9 @@ async function executeRun(runId: string, config: Config): Promise<void> {
 
         const startTime = Date.now();
 
-        // 根据 run.type 分派执行
+        // Dispatch execution based on run.type
         if (run.type === 'evaluation') {
-            // ===== 评测流程 =====
+            // ===== Evaluation Process =====
             console.log(`[RunExecutor] Starting evaluation for run ${runId}`);
             emitter.emit('event', {
                 type: 'log',
@@ -457,7 +457,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 message: 'Starting evaluation...',
             } as SSEEvent);
 
-            // 保存初始日志事件到数据库
+            // Save initial log event to database
             await prisma.runEvent.create({
                 data: {
                     runId,
@@ -468,10 +468,10 @@ async function executeRun(runId: string, config: Config): Promise<void> {
 
             const evaluator = factory.getEvalProvider();
 
-            // 注册活跃进程以便可以停止
+            // Register active process so it can be stopped
             activeRuns.set(runId, { evaluator });
 
-            // 检查是否有可用的 adapter
+            // Check if adapter is available
             let adapterPath: string | undefined;
             const adapterArtifact = await prisma.artifact.findFirst({
                 where: { runId: runId, kind: 'adapter' },
@@ -480,7 +480,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 adapterPath = adapterArtifact.path;
             }
 
-            // 使用 evalDatasetId 如果有的话，否则使用 datasetId
+            // Use evalDatasetId if available, otherwise use datasetId
             let evalDatasetPath = run.dataset.path;
             if ((run as any).evalDatasetId) {
                 const evalDataset = await prisma.dataset.findUnique({
@@ -491,7 +491,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 }
             }
 
-            // 如果支持流式评测，使用流式方法
+            // If streaming evaluation is supported, use streaming method
             let evalResult: any;
             if (evaluator.evaluateStream) {
                 for await (const event of evaluator.evaluateStream({
@@ -502,7 +502,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                     config,
                 })) {
                     if (event.type === 'log') {
-                        // P0-FIX: 使用缓冲器批量写入日志，减少 SQLite 写入压力
+                        // P0-FIX: Use buffer for batch log writing, reduce SQLite write pressure
                         const logBuffer = getLogBuffer(runId);
                         logBuffer.push({
                             runId,
@@ -527,7 +527,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                     } else if (event.type === 'complete') {
                         evalResult = event.data.result;
                     } else if (event.type === 'error') {
-                        // P0-FIX: 错误日志也使用缓冲器
+                        // P0-FIX: Error logs also use buffer
                         const logBuffer = getLogBuffer(runId);
                         logBuffer.push({
                             runId,
@@ -608,8 +608,8 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 });
             }
 
-            // P0-FIX: 读取 eval_summary.json 获取完整元信息（包含 datasetInfo 等）
-            // eval.py 在评测完成后会将完整日志保存到 eval_summary.json
+            // P0-FIX: Read eval_summary.json to get complete metadata (including datasetInfo etc.)
+            // eval.py saves complete logs to eval_summary.json after evaluation completes
             const evalSummaryPath = `./storage/runs/${runId}/eval_summary.json`;
             let fullEvalData: any = evalResult;
             try {
@@ -618,7 +618,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                     const summaryContent = fs.readFileSync(evalSummaryPath, 'utf-8');
                     const evalSummary = JSON.parse(summaryContent);
 
-                    // 合并完整元信息
+                    // Merge complete metadata
                     fullEvalData = {
                         ...evalResult,
                         evalRunId: evalSummary.eval_run_id,
@@ -630,7 +630,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         generationConfig: evalSummary.generation_config,
                         judgeConfig: evalSummary.judge_config,
                         environment: evalSummary.environment,
-                        // P0-FIX: 添加遗漏的 Pass@5 和 Pass@10 数据
+                        // P0-FIX: Add missing Pass@5 and Pass@10 data
                         passAt1: evalSummary.metrics_overall?.pass_at_1 ?? evalResult.passAt1 ?? 0,
                         passAt5: evalSummary.metrics_overall?.pass_at_5 ?? 0,
                         passAt10: evalSummary.metrics_overall?.pass_at_10 ?? 0,
@@ -656,7 +656,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                                 category: s.category,
                                 verdict: s.verdict,
                                 errorType: s.error_type,
-                                traceback: s.traceback,  // 完整保存，不截断
+                                traceback: s.traceback,  // Keep complete, don't truncate
                             })),
                     };
                     console.log(`[RunExecutor] Merged eval_summary.json for run ${runId} (dataset_info.total_problems: ${evalSummary.dataset_info?.total_problems || 'N/A'})`);
@@ -665,7 +665,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 console.warn(`[RunExecutor] Could not read eval_summary.json: ${e}`);
             }
 
-            // 保存评测结果
+            // Save evaluation results
             await prisma.run.update({
                 where: { id: runId },
                 data: {
@@ -681,7 +681,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 },
             });
 
-            // 保存评测结果到 artifacts
+            // Save evaluation results to artifacts
             const artifactStore = factory.getArtifactStore();
             const evalResultContent = JSON.stringify(evalResult, null, 2);
             await artifactStore.save(runId, 'eval', 'eval_result.json', Buffer.from(evalResultContent));
@@ -723,7 +723,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
 
             console.log(`[RunExecutor] Evaluation complete for run ${runId}: Pass@1=${evalResult.passAt1}%`);
 
-            // 创建评测完成通知
+            // Create evaluation completion notification
             await createNotification(
                 'run_completed',
                 `Evaluation Completed: ${run.name}`,
@@ -732,7 +732,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
             );
 
         } else {
-            // ===== 训练流程 =====
+            // ===== Training Process =====
             // Resolve eval dataset path for training if it exists
             let evalDatasetPath: string | undefined;
             if ((run as any).evalDatasetId) {
@@ -746,7 +746,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
 
             const trainer = factory.getTrainerProvider();
 
-            // 注册活跃进程以便可以停止
+            // Register active process so it can be stopped
             activeRuns.set(runId, { trainer });
 
             for await (const event of trainer.train({
@@ -758,7 +758,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 config,
             })) {
                 if (event.type === 'log') {
-                    // P0-FIX: 使用缓冲器批量写入日志，减少 SQLite 写入压力
+                    // P0-FIX: Use buffer for batch log writing, reduce SQLite write pressure
                     const logBuffer = getLogBuffer(runId);
                     logBuffer.push({
                         runId,
@@ -773,14 +773,14 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         message: event.data.message,
                     } as SSEEvent);
                 } else if (event.type === 'metric') {
-                    // 保存指标 - 直接创建，不再使用 upsert（唯一约束已移除）
+                    // Save metrics - create directly, no longer using upsert (unique constraint removed)
                     // console.log(`[RunExecutor] Saving metric for run ${runId}: step=${event.data.step}, loss=${event.data.loss}`);
                     await prisma.runMetric.create({
                         data: {
                             runId,
                             step: event.data.step,
                             loss: event.data.loss,
-                            // P0-FIX: 添加 epoch 到 extraJson，用于报告分组统计
+                            // P0-FIX: Add epoch to extraJson for report grouping statistics
                             extraJson: JSON.stringify({
                                 lr: event.data.lr,
                                 gradNorm: event.data.gradNorm,
@@ -802,7 +802,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         }
                     } as SSEEvent);
                 } else if (event.type === 'checkpoint') {
-                    // 保存 checkpoint 信息
+                    // Save checkpoint information
                     console.log(`[RunExecutor] Checkpoint event received: ${event.data.path}`);
                     const cpArtifact = await prisma.artifact.create({
                         data: {
@@ -825,10 +825,10 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         }
                     } as any);
                 } else if (event.type === 'experiment_log') {
-                    // 保存实验元信息 (来自 experiment_logger.py)
+                    // Save experiment metadata (from experiment_logger.py)
                     const expLog = event.data;
 
-                    // 更新 Run 基础字段
+                    // Update Run base fields
                     await prisma.run.update({
                         where: { id: runId },
                         data: {
@@ -841,7 +841,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         },
                     });
 
-                    // 保存环境元信息
+                    // Save environment metadata
                     if (expLog.environment) {
                         await prisma.experimentMeta.upsert({
                             where: { runId },
@@ -869,7 +869,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         });
                     }
 
-                    // 保存 LoRA 统计 (带异常保护，避免中断后续流程如适配器注册)
+                    // Save LoRA stats (with exception protection to avoid interrupting subsequent processes like adapter registration)
                     if (expLog.lora_stats) {
                         try {
                             await prisma.loraStats.upsert({
@@ -888,7 +888,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                             });
                         } catch (loraStatsError: any) {
                             console.error('[RunExecutor] Failed to save LoRA stats:', loraStatsError.message);
-                            // 记录警告但不中断执行，确保后续adapter注册能正常执行
+                            // Log warning but don't interrupt execution, ensure subsequent adapter registration can proceed
                             await prisma.runEvent.create({
                                 data: {
                                     runId,
@@ -905,7 +905,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         }
                     }
 
-                    // 保存数据集元信息
+                    // Save dataset metadata
                     if (expLog.dataset_info) {
                         await prisma.datasetMeta.upsert({
                             where: { runId },
@@ -935,12 +935,12 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         message: 'Experiment metadata saved',
                     } as SSEEvent);
                 } else if (event.type === 'eval_log') {
-                    // 保存评测元信息 (来自 eval_logger.py)
-                    // 注意：原代码引用了不存在的 Prisma 模型 (EvalRun/EvalMeta/EvalGenerationConfig 等)
-                    // 这里改为将关键信息存入 Run.evalResultJson
+                    // Save evaluation metadata (from eval_logger.py)
+                    // Note: Original code referenced non-existent Prisma models (EvalRun/EvalMeta/EvalGenerationConfig etc.)
+                    // Changed to save key info into Run.evalResultJson
                     const evalLog = event.data;
 
-                    // 构建评测结果摘要
+                    // Build evaluation result summary
                     const evalSummary = {
                         evalRunId: evalLog.eval_run_id,
                         evalTime: evalLog.eval_time,
@@ -950,27 +950,27 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         checkpointPath: evalLog.checkpoint_path,
                         checkpointStep: evalLog.checkpoint_step,
                         checkpointEpoch: evalLog.checkpoint_epoch,
-                        // 核心指标
+                        // Core metrics
                         passAt1: evalLog.metrics_overall?.pass_at_1,
                         passAt5: evalLog.metrics_overall?.pass_at_5,
                         passAt10: evalLog.metrics_overall?.pass_at_10,
                         compileRate: evalLog.metrics_overall?.compile_rate,
-                        // 环境信息
+                        // Environment info
                         environment: evalLog.environment,
-                        // 生成配置
+                        // Generation config
                         generationConfig: evalLog.generation_config,
-                        // 判题配置
+                        // Judge config
                         judgeConfig: evalLog.judge_config,
-                        // 数据集信息
+                        // Dataset info
                         datasetInfo: evalLog.dataset_info,
-                        // 后处理统计
+                        // Postprocess stats
                         postprocessStats: evalLog.postprocess_stats,
-                        // 错误分布等高级统计
+                        // Error distribution and advanced stats
                         errorStats: evalLog.error_stats,
                         timeStats: evalLog.time_stats,
                         difficultyBreakdown: evalLog.difficulty_breakdown,
                         categoryBreakdown: evalLog.category_breakdown,
-                        // 保存失败样例摘要（限制数量避免 JSON 过大）
+                        // Save failure samples summary (limit count to avoid oversized JSON)
                         failureSamples: evalLog.sample_results
                             ?.filter((s: any) => s.verdict !== 'passed')
                             ?.slice(0, 50)
@@ -980,20 +980,20 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                                 category: s.category,
                                 verdict: s.verdict,
                                 errorType: s.error_type,
-                                traceback: s.traceback,  // 完整保存，不截断
+                                traceback: s.traceback,  // Keep complete, don't truncate
                             })),
-                        // P0-FIX: 添加遗漏的 codeQuality 字段
+                        // P0-FIX: Add missing codeQuality field
                         codeQuality: evalLog.code_quality ? {
                             avgCodeLength: evalLog.code_quality.avg_code_length,
                             avgLineCount: evalLog.code_quality.avg_line_count,
                             extraIORate: evalLog.code_quality.extra_io_rate,
                             interfaceComplianceRate: evalLog.code_quality.interface_compliance_rate,
                         } : undefined,
-                        // P0-FIX: 添加分段统计（统一字段名）
+                        // P0-FIX: Add segment breakdown (standardize field name)
                         segmentBreakdown: evalLog.segment_breakdown,
                     };
 
-                    // 更新 Run 的评测结果
+                    // Update Run's evaluation results
                     await prisma.run.update({
                         where: { id: runId },
                         data: {
@@ -1015,7 +1015,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         message: `Eval metadata saved: ${evalLog.eval_run_id} (Pass@1: ${evalLog.metrics_overall?.pass_at_1 || 'N/A'}%)`,
                     } as SSEEvent);
                 } else if (event.type === 'data_quality') {
-                    // 保存数据质量统计 (来自 analyze_data_quality.py)
+                    // Save data quality stats (from analyze_data_quality.py)
                     const qualityStats = event.data;
 
                     // Update DatasetMeta with statistics JSON
@@ -1039,7 +1039,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         message: `Data quality stats saved: score=${qualityStats.quality_score}/100`,
                     } as SSEEvent);
                 } else if (event.type === 'training_summary') {
-                    // 保存训练摘要统计
+                    // Save training summary stats
                     const summary = event.data;
 
                     await prisma.run.update({
@@ -1058,14 +1058,14 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 }
             }
 
-            // for-await 循环结束，训练完成
-            // 不再自动执行评估，评估现在是独立的流程
-            // 用户可以在 Evaluation 页面手动启动评估
+            // for-await loop ended, training complete
+            // No longer automatically execute evaluation, evaluation is now a separate process
+            // User can manually start evaluation on the Evaluation page
 
-            // 生成产物
+            // Generate artifacts
             const artifactStore = factory.getArtifactStore();
 
-            // 保存训练日志
+            // Save training log
             const logContent = JSON.stringify({ runId, config }, null, 2);
             await artifactStore.save(runId, 'log', 'training_log.json', Buffer.from(logContent));
             const logArtifact = await prisma.artifact.create({
@@ -1082,14 +1082,14 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 }
             } as any);
 
-            // 注册训练产生的LoRA适配器
+            // Register LoRA adapter produced by training
             if (config.lora.enabled) {
                 const adapterDir = `./storage/runs/${runId}`;
                 const adapterConfigPath = path.join(adapterDir, 'adapter_config.json');
 
-                // 检查adapter是否真的被保存了
+                // Check if adapter was actually saved
                 if (fs.existsSync(adapterConfigPath)) {
-                    // 读取adapter配置获取信息
+                    // Read adapter config to get info
                     let adapterConfig: any = {};
                     try {
                         adapterConfig = JSON.parse(fs.readFileSync(adapterConfigPath, 'utf-8'));
@@ -1099,7 +1099,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
 
                     const adapterName = `${run.name}-adapter`;
 
-                    // 在数据库中创建Adapter记录
+                    // Create Adapter record in database
                     await prisma.adapter.upsert({
                         where: { name: adapterName },
                         create: {
@@ -1117,7 +1117,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                         },
                     });
 
-                    // 同时保存到artifacts
+                    // Also save to artifacts
                     const adapterArtifact = await prisma.artifact.create({
                         data: { runId, kind: 'adapter', path: adapterDir, size: 0 },
                     });
@@ -1135,42 +1135,42 @@ async function executeRun(runId: string, config: Config): Promise<void> {
 
                     console.log(`[RunExecutor] Adapter registered: ${adapterDir}`);
 
-                    // P0-SAFETY: 自动备份新训练的 adapter
+                    // P0-SAFETY: Auto backup newly trained adapter
                     await autoBackupNewAdapter(runId, path.resolve(adapterDir), adapterName);
                 } else {
                     console.warn(`[RunExecutor] Adapter config not found at ${adapterConfigPath}`);
                 }
             }
 
-            // P1-FIX: 根据设置清理多余的checkpoints
+            // P1-FIX: Clean up excess checkpoints based on settings
             await cleanupCheckpoints(runId, `./storage/runs/${runId}`);
 
-            // 计算时长
+            // Calculate duration
             const duration = formatDuration(Date.now() - startTime);
 
-            // P0-FIX: 获取训练过程中记录的最后一个"有效" loss 值
-            // 有效 loss = 有 learning rate 的 step（排除训练结束后的 epoch 平均 loss）
+            // P0-FIX: Get the last "valid" loss value recorded during training
+            // Valid loss = step with learning rate (exclude epoch average loss after training ends)
             const allMetrics = await prisma.runMetric.findMany({
                 where: { runId },
                 orderBy: { step: 'desc' },
             });
 
-            // 优先找有 lr 的最后一个 step
+            // Prefer finding last step with lr
             let finalLoss = 0;
             for (const m of allMetrics) {
                 const extra = m.extraJson ? JSON.parse(m.extraJson) : null;
                 if (extra?.lr != null || m.loss != null) {
                     finalLoss = m.loss ?? 0;
-                    // 如果有 lr，说明是正常的 step，使用它
+                    // If has lr, this is a normal step, use it
                     if (extra?.lr != null) break;
                 }
             }
-            // 如果所有 step 都没有 lr，使用最后一个非 0 的 loss
+            // If all steps have no lr, use last non-zero loss
             if (finalLoss === 0 && allMetrics.length > 0) {
                 finalLoss = allMetrics[0].loss ?? 0;
             }
 
-            // 更新运行状态为成功 (不再包含评测结果)
+            // Update run status to success (no longer includes evaluation results)
             await prisma.run.update({
                 where: { id: runId },
                 data: {
@@ -1179,8 +1179,8 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                     duration,
                     metricsJson: JSON.stringify({
                         loss: finalLoss,
-                        passAt1: 0,      // 评测需要手动运行
-                        compileRate: 0,  // 评测需要手动运行
+                        passAt1: 0,      // Evaluation needs to be run manually
+                        compileRate: 0,  // Evaluation needs to be run manually
                     }),
                 },
             });
@@ -1190,7 +1190,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
                 status: 'success',
             } as SSEEvent);
 
-            // 创建训练完成通知
+            // Create training completion notification
             await createNotification(
                 'run_completed',
                 `Training Completed: ${run.name}`,
@@ -1202,7 +1202,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
     } catch (error) {
         console.error(`Run ${runId} failed:`, error);
 
-        // 记录错误
+        // Log error
         await prisma.runEvent.create({
             data: {
                 runId,
@@ -1211,7 +1211,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
             },
         });
 
-        // 更新状态为失败
+        // Update status to failed
         await prisma.run.update({
             where: { id: runId },
             data: {
@@ -1225,7 +1225,7 @@ async function executeRun(runId: string, config: Config): Promise<void> {
             status: 'failed',
         } as SSEEvent);
 
-        // 创建任务失败通知
+        // Create task failed notification
         const run = await prisma.run.findUnique({ where: { id: runId } });
         await createNotification(
             'run_failed',
@@ -1234,11 +1234,11 @@ async function executeRun(runId: string, config: Config): Promise<void> {
             runId
         );
     } finally {
-        // P0-FIX: 确保所有缓冲的日志都写入数据库
+        // P0-FIX: Ensure all buffered logs are written to database
         await removeLogBuffer(runId);
-        // 清理活跃进程追踪
+        // Clean up active process tracking
         activeRuns.delete(runId);
-        // 延迟清理 emitter，让客户端有时间接收最终状态
+        // Delay cleaning emitter, give clients time to receive final status
         setTimeout(() => removeRunEmitter(runId), 5000);
     }
 }
@@ -1265,45 +1265,45 @@ function formatSize(bytes: number): string {
 }
 
 /**
- * P1-FIX: 根据设置清理多余的checkpoints
- * 读取 storage.checkpointRetention 设置，删除超出保留数量的旧checkpoints
- * 支持数字格式（0=保留全部，N=保留最近N个）
+ * P1-FIX: Clean up excess checkpoints based on settings
+ * Read storage.checkpointRetention setting, delete checkpoints exceeding retention count
+ * Supports number format (0=keep all, N=keep recent N)
  */
 async function cleanupCheckpoints(runId: string, outputDir: string): Promise<void> {
     try {
-        // 读取checkpoint保留设置
+        // Read checkpoint retention setting
         const storageSetting = await prisma.setting.findUnique({
             where: { key: 'storage' }
         });
 
-        let keepCount = 3;  // 默认保留3个
+        let keepCount = 3;  // Default keep 3
         if (storageSetting) {
             try {
                 const storage = JSON.parse(storageSetting.valueJson);
                 const retention = storage?.checkpointRetention;
 
-                // 支持数字类型和旧的字符串类型
+                // Support number type and legacy string type
                 if (typeof retention === 'number') {
                     keepCount = retention;
                 } else if (typeof retention === 'string') {
-                    // 兼容旧格式
+                    // Compatible with legacy format
                     if (retention === 'all') keepCount = 0;
                     else if (retention === 'last5') keepCount = 5;
                     else if (retention === 'last3') keepCount = 3;
                     else keepCount = parseInt(retention) || 3;
                 }
             } catch (e) {
-                // 解析失败使用默认值
+                // Use default value on parse failure
             }
         }
 
-        // 如果设置为0，保留全部
+        // If set to 0, keep all
         if (keepCount === 0) {
             console.log(`[RunExecutor] Checkpoint cleanup skipped (retention=0, keep all)`);
             return;
         }
 
-        // 扫描 outputDir 中的 checkpoint-* 目录
+        // Scan checkpoint-* directories in outputDir
         if (!fs.existsSync(outputDir)) {
             return;
         }
@@ -1316,9 +1316,9 @@ async function cleanupCheckpoints(runId: string, outputDir: string): Promise<voi
                 path: path.join(outputDir, e.name),
                 step: parseInt(e.name.replace('checkpoint-', '')) || 0,
             }))
-            .sort((a, b) => b.step - a.step);  // 按step降序排列
+            .sort((a, b) => b.step - a.step);  // Sort by step descending
 
-        // 保留最新的 keepCount 个，删除其余的
+        // Keep the latest keepCount, delete the rest
         const toDelete = checkpointDirs.slice(keepCount);
 
         if (toDelete.length === 0) {
@@ -1330,11 +1330,11 @@ async function cleanupCheckpoints(runId: string, outputDir: string): Promise<voi
 
         for (const cp of toDelete) {
             try {
-                // 递归删除 checkpoint 目录
+                // Recursively delete checkpoint directory
                 fs.rmSync(cp.path, { recursive: true, force: true });
                 console.log(`[RunExecutor] Deleted checkpoint: ${cp.name}`);
 
-                // 从数据库中删除对应的 artifact 记录
+                // Delete corresponding artifact record from database
                 await prisma.artifact.deleteMany({
                     where: {
                         runId,
@@ -1353,19 +1353,19 @@ async function cleanupCheckpoints(runId: string, outputDir: string): Promise<voi
     }
 }
 
-// 停止运行
+// Stop run
 export async function stopRun(runId: string): Promise<void> {
     const run = await prisma.run.findUnique({ where: { id: runId } });
     if (!run) {
         throw new Error('Run not found');
     }
 
-    // 支持停止 queued 和 running 状态
+    // Support stopping queued and running status
     if (run.status !== 'running' && run.status !== 'queued') {
         throw new Error(`Run cannot be stopped (current status: ${run.status})`);
     }
 
-    // 如果是 queued 状态，从队列中移除
+    // If queued status, remove from queue
     if (run.status === 'queued') {
         const queueIndex = runQueue.findIndex(q => q.runId === runId);
         if (queueIndex !== -1) {
@@ -1373,7 +1373,7 @@ export async function stopRun(runId: string): Promise<void> {
         }
     }
 
-    // 如果是 running 状态，尝试终止实际进程
+    // If running status, try to terminate actual process
     if (run.status === 'running') {
         const activeRun = activeRuns.get(runId);
         if (activeRun) {
@@ -1416,7 +1416,7 @@ export async function stopRun(runId: string): Promise<void> {
     } as SSEEvent);
 }
 
-// 获取队列状态
+// Get queue status
 export function getQueueStatus(): { queueLength: number; isProcessing: boolean } {
     return {
         queueLength: runQueue.length,
@@ -1424,7 +1424,7 @@ export function getQueueStatus(): { queueLength: number; isProcessing: boolean }
     };
 }
 
-// 获取完整队列详情（从数据库读取，按 queuePosition 排序）
+// Get complete queue details (read from database, sorted by queuePosition)
 export async function getQueue(): Promise<Array<{
     id: string;
     name: string;
@@ -1453,9 +1453,9 @@ export async function getQueue(): Promise<Array<{
     }));
 }
 
-// 重排队列中任务的位置
+// Reorder task position in queue
 export async function reorderQueue(runId: string, newPosition: number): Promise<void> {
-    // 获取当前任务
+    // Get current task
     const run = await prisma.run.findUnique({ where: { id: runId } });
     if (!run) {
         throw new Error('Run not found');
@@ -1467,20 +1467,20 @@ export async function reorderQueue(runId: string, newPosition: number): Promise<
     const currentPosition = run.queuePosition ?? 0;
     if (currentPosition === newPosition) return;
 
-    // 获取所有队列中的任务
+    // Get all queued tasks
     const queuedRuns = await prisma.run.findMany({
         where: { status: 'queued', queuePosition: { not: null } },
         orderBy: { queuePosition: 'asc' },
     });
 
-    // 验证 newPosition 范围
+    // Validate newPosition range
     if (newPosition < 1 || newPosition > queuedRuns.length) {
         throw new Error(`Invalid position: ${newPosition}. Must be between 1 and ${queuedRuns.length}`);
     }
 
-    // 调整其他任务的位置
+    // Adjust positions of other tasks
     if (newPosition < currentPosition) {
-        // 向前移动：将 [newPosition, currentPosition-1] 范围内的任务位置 +1
+        // Moving forward: increment position by 1 for tasks in [newPosition, currentPosition-1] range
         await prisma.run.updateMany({
             where: {
                 status: 'queued',
@@ -1489,7 +1489,7 @@ export async function reorderQueue(runId: string, newPosition: number): Promise<
             data: { queuePosition: { increment: 1 } },
         });
     } else {
-        // 向后移动：将 [currentPosition+1, newPosition] 范围内的任务位置 -1
+        // Moving backward: decrement position by 1 for tasks in [currentPosition+1, newPosition] range
         await prisma.run.updateMany({
             where: {
                 status: 'queued',
@@ -1499,24 +1499,24 @@ export async function reorderQueue(runId: string, newPosition: number): Promise<
         });
     }
 
-    // 更新目标任务的位置
+    // Update target task position
     await prisma.run.update({
         where: { id: runId },
         data: { queuePosition: newPosition },
     });
 
-    // 同步内存队列顺序
+    // Sync memory queue order
     await syncMemoryQueue();
 }
 
-// 同步内存队列与数据库顺序
+// Sync memory queue with database order
 async function syncMemoryQueue(): Promise<void> {
     const queuedRuns = await prisma.run.findMany({
         where: { status: 'queued' },
         orderBy: { queuePosition: 'asc' },
     });
 
-    // 保留内存中已有的 config，按数据库顺序重新排列
+    // Keep config from memory, reorder according to database order
     const configMap = new Map(runQueue.map(q => [q.runId, q.config]));
     runQueue.length = 0;
 
@@ -1528,7 +1528,7 @@ async function syncMemoryQueue(): Promise<void> {
     }
 }
 
-// 获取正在运行的任务
+// Get currently running task
 export async function getActiveRun(): Promise<{ id: string; name: string } | null> {
     const activeRun = await prisma.run.findFirst({
         where: { status: 'running' },

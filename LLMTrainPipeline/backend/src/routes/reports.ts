@@ -7,27 +7,27 @@ import { fileURLToPath } from 'url';
 import { prisma } from '../db/prisma-client.js';
 import { getPython } from '../utils/python-utils.js';
 
-// 获取 scripts 目录路径
+// Get scripts directory path
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const SCRIPTS_DIR = path.resolve(__dirname, '../../scripts');
 const REPORTS_DIR = path.resolve(__dirname, '../../storage/reports');
 const STORAGE_DIR = path.resolve(__dirname, '../../storage');
 
-// 确保报告目录存在
+// Ensure reports directory exists
 if (!fs.existsSync(REPORTS_DIR)) {
     fs.mkdirSync(REPORTS_DIR, { recursive: true });
 }
 
 /**
- * 使用 Python 报告生成器生成报告 (HTML 或 Markdown)
+ * Generate report using Python report generator (HTML or Markdown)
  */
 async function generatePythonReport(
     runId: string,
     title?: string,
     format: 'html' | 'markdown' = 'html'
 ): Promise<{ content: string; outputPath: string }> {
-    // 获取 Run 数据用于生成临时配置文件
+    // Get Run data for generating temporary config file
     const run = await prisma.run.findUnique({
         where: { id: runId },
         include: {
@@ -44,7 +44,7 @@ async function generatePythonReport(
         throw new Error(`Run not found: ${runId}`);
     }
 
-    // 解析配置和结果
+    // Parse configuration and results
     let config = {};
     let evalResult = {};
     let metricsJson = {};
@@ -52,12 +52,12 @@ async function generatePythonReport(
     try { evalResult = JSON.parse(run.evalResultJson || '{}'); } catch { }
     try { metricsJson = JSON.parse(run.metricsJson || '{}'); } catch { }
 
-    // 构建完整的配置对象供 Python 脚本使用
-    // 处理扁平化配置和嵌套配置两种格式
+    // Build complete configuration object for Python script
+    // Support both flattened and nested configuration formats
     const flatConfig = config as any;
 
-    // 训练指标 - 先计算 rawLoggedSteps 和 effectiveSteps（供后续 trainingConfig 使用）
-    // 保存原始 metrics 数量（包含 warmup/pre-log）
+    // Training metrics - first calculate rawLoggedSteps and effectiveSteps (for later trainingConfig use)
+    // Save original metrics count (including warmup/pre-log)
     const rawMetrics = run.metrics
         .map((m) => {
             let extra: any = {};
@@ -72,12 +72,12 @@ async function generatePythonReport(
 
     const rawLoggedSteps = rawMetrics.length;
 
-    // P0-FIX: 过滤掉没有 lr 或 lr=0 的步骤（warmup/pre-update）
-    // lr=0 表示梯度累积期间的日志，还没有真正的参数更新
+    // P0-FIX: Filter out steps without lr or lr=0 (warmup/pre-update)
+    // lr=0 indicates logging during gradient accumulation, no actual parameter update
     const metrics = rawMetrics.filter(m => m.lr != null && m.lr > 0);
     const effectiveSteps = metrics.length;
 
-    // 从 configJson 中提取 training 配置 (支持扁平和嵌套两种格式)
+    // Extract training config from configJson (support both flat and nested formats)
     const trainingConfig = flatConfig.training || {
         lr: flatConfig.lr,
         epochs: flatConfig.epochs,
@@ -93,13 +93,13 @@ async function generatePythonReport(
         precision: flatConfig.precision,
     };
 
-    // 确保 total_steps 被正确传递 (优先使用 run 记录中的，其次是 config 中的)
+    // Ensure total_steps is correctly passed (prioritize run record value, then config value)
     trainingConfig.total_steps = run.totalSteps || trainingConfig.total_steps;
-    // 传递原始日志步数和有效步数（用于报告显示三种 steps）
+    // Pass raw logged steps and effective steps (for report to display three types of steps)
     trainingConfig.raw_logged_steps = rawLoggedSteps;
     trainingConfig.effective_steps = effectiveSteps;
 
-    // 从 configJson 和 loraStats 中提取 LoRA 配置
+    // Extract LoRA config from configJson and loraStats
     const loraConfigFromJson = flatConfig.lora || {
         enabled: flatConfig.useLora !== false,
         rank: flatConfig.loraRank,
@@ -108,7 +108,7 @@ async function generatePythonReport(
         quantization: flatConfig.quantization,
     };
 
-    // 合并来自 run.loraStats 的数据
+    // Merge data from run.loraStats
     const loraConfig = {
         ...loraConfigFromJson,
         rank: loraConfigFromJson.rank || run.loraStats?.rank,
@@ -134,21 +134,21 @@ async function generatePythonReport(
         dataset: {
             name: run.dataset.name,
             path: run.dataset.path,
-            // P0-1: samples 应该是 train_samples 的值（如果 dataset.samples 为 0）
+            // P0-1: samples should be train_samples value (if dataset.samples is 0)
             samples: run.dataset.samples || run.datasetMeta?.trainSamples || 0,
-            // 使用 nullish coalescing 确保 0 值有效
+            // Use nullish coalescing to ensure 0 values are valid
             train_samples: run.datasetMeta?.trainSamples ?? run.dataset.samples ?? 0,
             val_samples: run.datasetMeta?.valSamples,
-            // 优先使用 ExperimentMeta/DatasetMeta 中的数据，其次是 Run 中的数据
+            // Prioritize data from ExperimentMeta/DatasetMeta, then from Run
             total_tokens: run.datasetMeta?.totalTokens ?? run.totalTokens,
         },
         training: trainingConfig,
         lora: loraConfig,
-        // 保留其他顶级配置项
+        // Keep other top-level config items
         ...flatConfig,
     };
 
-    // 构建实验元数据
+    // Build experiment metadata
     const experimentMeta = run.experimentMeta ? {
         osVersion: run.experimentMeta.osVersion,
         pythonVersion: run.experimentMeta.pythonVersion,
@@ -165,7 +165,7 @@ async function generatePythonReport(
         ramGB: run.experimentMeta.ramGB,
     } : {};
 
-    // LoRA 统计 (来自训练时收集的数据)
+    // LoRA statistics (collected during training)
     const loraStats = run.loraStats ? {
         trainable_params: run.loraStats.trainableParams,
         total_params: run.loraStats.totalParams,
@@ -176,11 +176,11 @@ async function generatePythonReport(
         target_modules: run.loraStats.targetModules ? JSON.parse(run.loraStats.targetModules) : undefined,
     } : {};
 
-    // 创建临时目录存放数据文件
+    // Create temporary directory for data files
     const tempDir = path.join(REPORTS_DIR, `temp-${runId}-${Date.now()}`);
     fs.mkdirSync(tempDir, { recursive: true });
 
-    // 写入数据文件
+    // Write data files
     const configPath = path.join(tempDir, 'config.json');
     const metricsPath = path.join(tempDir, 'metrics.json');
     const evalPath = path.join(tempDir, 'eval_result.json');
@@ -213,12 +213,12 @@ async function generatePythonReport(
         }
     }
 
-    // 输出路径
+    // Output path
     const ext = format === 'markdown' ? 'md' : 'html';
     const outputFilename = `report-${runId}-${Date.now()}.${ext}`;
     const outputPath = path.join(REPORTS_DIR, outputFilename);
 
-    // 调用 Python 报告生成器
+    // Call Python report generator
     return new Promise((resolve, reject) => {
         const pythonScript = path.join(SCRIPTS_DIR, 'report_generator.py');
 
@@ -255,7 +255,7 @@ async function generatePythonReport(
         });
 
         proc.on('close', (code) => {
-            // 清理临时目录
+            // Clean up temporary directory
             try {
                 fs.rmSync(tempDir, { recursive: true, force: true });
             } catch { }
@@ -269,7 +269,7 @@ async function generatePythonReport(
         });
 
         proc.on('error', (err) => {
-            // 清理临时目录
+            // Clean up temporary directory
             try {
                 fs.rmSync(tempDir, { recursive: true, force: true });
             } catch { }
@@ -279,15 +279,15 @@ async function generatePythonReport(
 }
 
 /**
- * 使用 Python 评测报告生成器生成评测报告 (HTML 或 Markdown)
- * P0-FIX: 新增评测报告生成支持
+ * Generate evaluation report using Python eval report generator (HTML or Markdown)
+ * P0-FIX: Added evaluation report generation support
  */
 async function generateEvalReport(
     runId: string,
     title?: string,
     format: 'html' | 'markdown' = 'html'
 ): Promise<{ content: string; outputPath: string }> {
-    // 获取 Run 数据
+    // Get Run data
     const run = await prisma.run.findUnique({
         where: { id: runId },
     });
@@ -296,12 +296,12 @@ async function generateEvalReport(
         throw new Error(`Run not found: ${runId}`);
     }
 
-    // 必须是评测类型的运行
+    // Must be evaluation type run
     if (run.type !== 'evaluation') {
         throw new Error(`Run ${runId} is not an evaluation run`);
     }
 
-    // 解析 evalResultJson
+    // Parse evalResultJson
     let evalData: any = {};
     try {
         evalData = JSON.parse(run.evalResultJson || '{}');
@@ -309,15 +309,15 @@ async function generateEvalReport(
         throw new Error('Invalid evalResultJson format');
     }
 
-    // P0/P1-FIX: 尝试从 eval_summary.json 直接读取新字段（回退机制）
-    // 这样即使数据库中的旧数据没有新字段，也能从原始文件获取
+    // P0/P1-FIX: Try to read new fields from eval_summary.json directly (fallback mechanism)
+    // This allows getting new fields from original file even if database data doesn't have them
     if (!evalData.perProblemStats || !evalData.failureExamplesByType) {
         const runStoragePath = path.join(STORAGE_DIR, 'runs', runId, 'eval_summary.json');
         if (fs.existsSync(runStoragePath)) {
             try {
                 const evalSummaryRaw = fs.readFileSync(runStoragePath, 'utf-8');
                 const evalSummary = JSON.parse(evalSummaryRaw);
-                // 从原始文件补充新字段
+                // Supplement new fields from original file
                 if (!evalData.perProblemStats && evalSummary.per_problem_stats) {
                     evalData.perProblemStats = evalSummary.per_problem_stats;
                 }
@@ -331,12 +331,12 @@ async function generateEvalReport(
         }
     }
 
-    // 创建临时目录存放 eval_summary.json
+    // Create temporary directory for eval_summary.json
     const tempDir = path.join(REPORTS_DIR, `temp-eval-${runId}-${Date.now()}`);
     fs.mkdirSync(tempDir, { recursive: true });
 
-    // 将 evalResultJson 转换为 eval_summary.json 格式
-    // P0-FIX: 字段映射适配 - run-executor.ts 存储的格式 -> eval_report_generator.py 期望的格式
+    // Convert evalResultJson to eval_summary.json format
+    // P0-FIX: Field mapping adaptation - run-executor.ts stored format -> eval_report_generator.py expected format
     const evalSummary = {
         eval_run_id: evalData.evalRunId || runId,
         eval_time: evalData.evalTime || run.completedAt?.toISOString(),
@@ -348,10 +348,10 @@ async function generateEvalReport(
         // Dataset info
         dataset_info: evalData.datasetInfo || {},
 
-        // Generation settings (字段名映射)
+        // Generation settings (field name mapping)
         generation_settings: evalData.generationConfig || evalData.generation_settings || {},
 
-        // Judge settings (字段名映射)
+        // Judge settings (field name mapping)
         judge_settings: evalData.judgeConfig || evalData.judge_settings || {},
 
         // Metrics
@@ -362,7 +362,7 @@ async function generateEvalReport(
             compile_rate: evalData.compileRate || 0,
         },
 
-        // Error distribution (字段名映射)
+        // Error distribution (field name mapping)
         error_distribution: {
             syntax_error_rate: evalData.errorStats?.syntaxErrorRate || 0,
             runtime_error_rate: evalData.errorStats?.runtimeErrorRate || 0,
@@ -380,7 +380,7 @@ async function generateEvalReport(
             max_runtime_ms: evalData.timeStats?.maxRuntimeMs || 0,
         },
 
-        // Code quality (使用实际数据 - 需要 camelCase 转 snake_case)
+        // Code quality (using actual data - need camelCase to snake_case)
         code_quality: {
             interface_compliance_rate: evalData.codeQuality?.interfaceComplianceRate ?? 0,
             extra_io_rate: evalData.codeQuality?.extraIORate ?? 0,
@@ -388,7 +388,7 @@ async function generateEvalReport(
             avg_line_count: evalData.codeQuality?.avgLineCount ?? 0,
         },
 
-        // Segment breakdown (字段名映射 - 同时支持旧字段名和新的 segmentBreakdown)
+        // Segment breakdown (field name mapping - supporting both old field names and new segmentBreakdown)
         segment_breakdown: evalData.segmentBreakdown || {
             by_difficulty: evalData.difficultyBreakdown || {},
             by_category: evalData.categoryBreakdown || {},
@@ -407,16 +407,16 @@ async function generateEvalReport(
         environment_info: evalData.environment || {},
     };
 
-    // 写入临时文件
+    // Write temporary file
     const evalSummaryPath = path.join(tempDir, 'eval_summary.json');
     fs.writeFileSync(evalSummaryPath, JSON.stringify(evalSummary, null, 2));
 
-    // 输出路径
+    // Output path
     const ext = format === 'markdown' ? 'md' : 'html';
     const outputFilename = `eval-report-${runId}-${Date.now()}.${ext}`;
     const outputPath = path.join(REPORTS_DIR, outputFilename);
 
-    // 调用 Python 评测报告生成器
+    // Call Python eval report generator
     return new Promise((resolve, reject) => {
         const pythonScript = path.join(SCRIPTS_DIR, 'eval_report_generator.py');
 
@@ -448,18 +448,18 @@ async function generateEvalReport(
         });
 
         proc.on('close', (code) => {
-            // 清理临时目录
+            // Clean up temporary directory
             try {
                 fs.rmSync(tempDir, { recursive: true, force: true });
             } catch { }
 
-            // 报告生成器会输出多个格式，我们需要找到正确的文件
+            // Report generator outputs multiple formats, we need to find the correct file
             const expectedPrefix = 'eval_report';
             const expectedFile = path.join(REPORTS_DIR, `${expectedPrefix}.${ext}`);
 
             if (code === 0 && fs.existsSync(expectedFile)) {
                 const content = fs.readFileSync(expectedFile, 'utf-8');
-                // 重命名为带 runId 的文件名
+                // Rename to filename with runId
                 fs.renameSync(expectedFile, outputPath);
                 resolve({ content, outputPath });
             } else {
@@ -468,7 +468,7 @@ async function generateEvalReport(
         });
 
         proc.on('error', (err) => {
-            // 清理临时目录
+            // Clean up temporary directory
             try {
                 fs.rmSync(tempDir, { recursive: true, force: true });
             } catch { }
@@ -480,14 +480,14 @@ async function generateEvalReport(
 export async function reportsRoutes(fastify: FastifyInstance) {
 
     // ========================================================================
-    // Python 报告生成 API（主要使用）
+    // Python Report Generation API (Primary)
     // ========================================================================
 
-    // POST /api/reports/generate - 使用 Python 生成报告
+    // POST /api/reports/generate - Generate report using Python
     fastify.post('/generate', {
         schema: {
             tags: ['Reports'],
-            summary: '生成新报告（使用 Python 报告生成器）',
+            summary: 'Generate new report (using Python report generator)',
             body: {
                 type: 'object',
                 properties: {
@@ -505,7 +505,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
         }
 
         try {
-            // 获取 Run 信息
+            // Get Run information
             const run = await prisma.run.findUnique({ where: { id: body.runId } });
             if (!run) {
                 return reply.status(404).send({ error: 'Run not found' });
@@ -513,30 +513,30 @@ export async function reportsRoutes(fastify: FastifyInstance) {
 
             const title = body.title || `${run.name} ${run.type === 'evaluation' ? 'Evaluation' : 'Training'} Report`;
 
-            // 确定格式
+            // Determine format
             const formatInput = (body.format || 'HTML').toUpperCase();
             const isMarkdown = formatInput === 'MARKDOWN' || formatInput === 'MD';
             const reportFormat: 'html' | 'markdown' = isMarkdown ? 'markdown' : 'html';
 
-            // P0-FIX: 根据 Run 类型选择报告生成器
+            // P0-FIX: Choose report generator based on Run type
             console.log(`[Report] Generating ${reportFormat} ${run.type} report for run ${body.runId}...`);
 
             let content: string;
             let outputPath: string;
 
             if (run.type === 'evaluation') {
-                // 使用评测报告生成器
+                // Use evaluation report generator
                 const result = await generateEvalReport(body.runId, title, reportFormat);
                 content = result.content;
                 outputPath = result.outputPath;
             } else {
-                // 使用训练报告生成器
+                // Use training report generator
                 const result = await generatePythonReport(body.runId, title, reportFormat);
                 content = result.content;
                 outputPath = result.outputPath;
             }
 
-            // 保存报告记录到数据库
+            // Save report record to database
             const report = await prisma.report.create({
                 data: {
                     title,
@@ -563,11 +563,11 @@ export async function reportsRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // GET /api/reports - 获取所有报告
+    // GET /api/reports - Get all reports
     fastify.get('/', {
         schema: {
             tags: ['Reports'],
-            summary: '获取所有报告',
+            summary: 'Get all reports',
         },
     }, async (request, reply) => {
         const reports = await prisma.report.findMany({
@@ -586,11 +586,11 @@ export async function reportsRoutes(fastify: FastifyInstance) {
         return response;
     });
 
-    // GET /api/reports/:id - 获取单个报告详情
+    // GET /api/reports/:id - Get single report details
     fastify.get<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Reports'],
-            summary: '获取报告详情',
+            summary: 'Get report details',
         },
     }, async (request, reply) => {
         const report = await prisma.report.findUnique({
@@ -612,11 +612,11 @@ export async function reportsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // GET /api/reports/:id/download - 下载报告
+    // GET /api/reports/:id/download - Download report
     fastify.get<{ Params: { id: string } }>('/:id/download', {
         schema: {
             tags: ['Reports'],
-            summary: '下载报告',
+            summary: 'Download report',
         },
     }, async (request, reply) => {
         const report = await prisma.report.findUnique({
@@ -627,13 +627,13 @@ export async function reportsRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Report not found' });
         }
 
-        // 根据报告格式设置正确的 content-type 和文件扩展名
+        // Set correct content-type and file extension based on report format
         const isMarkdown = report.format === 'Markdown' || report.format === 'MD';
         const contentType = isMarkdown ? 'text/markdown; charset=utf-8' : 'text/html; charset=utf-8';
         const fileExt = isMarkdown ? 'md' : 'html';
         const filename = `${report.title.replace(/\s+/g, '_')}.${fileExt}`;
 
-        // 如果报告文件存在，直接返回
+        // If report file exists, return directly
         if (report.path && fs.existsSync(report.path)) {
             const content = fs.readFileSync(report.path, 'utf-8');
             reply.header('Content-Type', contentType);
@@ -641,7 +641,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
             return reply.send(content);
         }
 
-        // 如果文件不存在但有 runId，重新生成
+        // If file doesn't exist but has runId, regenerate
         if (report.runId) {
             try {
                 const reportFormat: 'html' | 'markdown' = isMarkdown ? 'markdown' : 'html';
@@ -654,15 +654,15 @@ export async function reportsRoutes(fastify: FastifyInstance) {
             }
         }
 
-        // 返回错误
+        // Return error
         return reply.status(404).send({ error: 'Report file not found and cannot be regenerated' });
     });
 
-    // GET /api/reports/:id/preview - 预览报告内容（返回 HTML）
+    // GET /api/reports/:id/preview - Preview report content (returns HTML)
     fastify.get<{ Params: { id: string } }>('/:id/preview', {
         schema: {
             tags: ['Reports'],
-            summary: '预览报告内容',
+            summary: 'Preview report content',
         },
     }, async (request, reply) => {
         const report = await prisma.report.findUnique({
@@ -673,7 +673,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Report not found' });
         }
 
-        // 检查是否有关联的 Run
+        // Check if there is an associated Run
         if (!report.runId) {
             return {
                 id: report.id,
@@ -682,11 +682,11 @@ export async function reportsRoutes(fastify: FastifyInstance) {
                 format: report.format,
                 date: report.createdAt.toISOString(),
                 hasTrainingData: false,
-                message: '此报告没有关联训练运行。可从 Run 详情页生成报告以包含真实数据。',
+                message: 'This report has no associated training run. Generate report from Run details page to include real data.',
             };
         }
 
-        // 获取 Run 数据
+        // Get Run data
         const run = await prisma.run.findUnique({
             where: { id: report.runId },
             include: {
@@ -696,7 +696,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
                 loraStats: true,
                 metrics: {
                     orderBy: { step: 'asc' },
-                    take: 500, // 增加限制以支持更全面的数据预览
+                    take: 500, // Increase limit to support more comprehensive data preview
                 },
             }
         });
@@ -709,11 +709,11 @@ export async function reportsRoutes(fastify: FastifyInstance) {
                 format: report.format,
                 date: report.createdAt.toISOString(),
                 hasTrainingData: false,
-                message: '关联的训练运行已被删除。',
+                message: 'Associated training run has been deleted.',
             };
         }
 
-        // 解析配置和结果
+        // Parse configuration and results
         let config: any = {};
         let evalResult: any = {};
         let metricsJson: any = {};
@@ -721,7 +721,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
         try { evalResult = JSON.parse(run.evalResultJson || '{}'); } catch { }
         try { metricsJson = JSON.parse(run.metricsJson || '{}'); } catch { }
 
-        // 支持扁平格式和嵌套格式两种配置 (与 generatePythonReport 保持一致)
+        // Support both flat format and nested format configuration (consistent with generatePythonReport)
         const flatConfig = config as any;
         const trainingConfig = flatConfig.training || {
             lr: flatConfig.lr,
@@ -745,11 +745,11 @@ export async function reportsRoutes(fastify: FastifyInstance) {
             quantization: flatConfig.quantization,
         };
 
-        // 返回预览数据
+        // Return preview data
         return {
             id: report.id,
             title: report.title,
-            // P0-FIX: 返回 run type，便于前端区分训练/评测报告
+            // P0-FIX: Return run type for frontend to distinguish training/evaluation reports
             type: run.type === 'evaluation' ? 'Evaluation' : report.type,
             format: report.format,
             date: report.createdAt.toISOString(),
@@ -779,7 +779,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
                 totalTokens: run.totalTokens,
             },
 
-            // 训练配置（仅训练报告，评测报告返回 null）
+            // Training configuration (training reports only, evaluation reports return null)
             training: run.type !== 'evaluation' ? {
                 batchSize: trainingConfig.batchSize || 1,
                 gradientAccumulationSteps: trainingConfig.gradientAccumulation || trainingConfig.gradAccum || 8,
@@ -794,7 +794,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
                 precision: trainingConfig.precision || 'fp16',
             } : null,
 
-            // LoRA 配置（仅训练报告）
+            // LoRA configuration (training reports only)
             lora: run.type !== 'evaluation' ? {
                 enabled: loraConfig.enabled !== false,
                 rank: run.loraStats?.rank || loraConfig.rank || null,
@@ -805,12 +805,12 @@ export async function reportsRoutes(fastify: FastifyInstance) {
                 trainablePercent: run.loraStats?.trainablePercent ? `${run.loraStats.trainablePercent.toFixed(4)}%` : null,
             } : null,
 
-            // 训练统计（仅训练报告）
+            // Training statistics (training reports only)
             trainingStats: run.type !== 'evaluation' ? {
-                // P0-FIX: 使用有 lr 的最后一步，排除可能的 epoch 平均 loss 步
+                // P0-FIX: Use last step with lr, exclude possible epoch average loss step
                 totalSteps: run.totalSteps || (() => {
                     if (run.metrics.length === 0) return null;
-                    // 从后往前找有 lr 的 step
+                    // Find step with lr from back to front
                     for (let i = run.metrics.length - 1; i >= 0; i--) {
                         const m = run.metrics[i];
                         try {
@@ -818,7 +818,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
                             if (extra.lr != null) return m.step;
                         } catch { }
                     }
-                    // 如果都没有 lr，返回倒数第二个（避免 epoch 平均值）
+                    // If none have lr, return second to last (avoid epoch average value)
                     return run.metrics.length >= 2
                         ? run.metrics[run.metrics.length - 2].step
                         : run.metrics[run.metrics.length - 1].step;
@@ -830,7 +830,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
 
             evaluation: {
                 passAt1: metricsJson.passAt1 ?? evalResult.passAt1 ?? null,
-                // P0-FIX: 使用正确的字段名 passAt5/passAt10
+                // P0-FIX: Use correct field names passAt5/passAt10
                 passAt5: evalResult.passAt5 ?? evalResult.passAtK?.['5'] ?? null,
                 passAt10: evalResult.passAt10 ?? evalResult.passAtK?.['10'] ?? null,
                 compileRate: metricsJson.compileRate ?? evalResult.compileRate ?? null,
@@ -869,7 +869,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
                 ram: run.experimentMeta.ramGB ? `${run.experimentMeta.ramGB.toFixed(1)} GB` : null,
             } : null,
 
-            // 训练曲线数据
+            // Training curve data
             lossCurve: run.metrics.map((m) => ({
                 step: m.step,
                 loss: m.loss || 0,
@@ -877,11 +877,11 @@ export async function reportsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // PUT /api/reports/:id - 更新报告
+    // PUT /api/reports/:id - Update report
     fastify.put<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Reports'],
-            summary: '更新报告',
+            summary: 'Update report',
             body: {
                 type: 'object',
                 properties: {
@@ -914,11 +914,11 @@ export async function reportsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // DELETE /api/reports/:id - 删除报告
+    // DELETE /api/reports/:id - Delete report
     fastify.delete<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Reports'],
-            summary: '删除报告',
+            summary: 'Delete report',
         },
     }, async (request, reply) => {
         const report = await prisma.report.findUnique({
@@ -929,7 +929,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Report not found' });
         }
 
-        // 删除报告文件
+        // Delete report file
         if (report.path && fs.existsSync(report.path)) {
             try {
                 fs.unlinkSync(report.path);

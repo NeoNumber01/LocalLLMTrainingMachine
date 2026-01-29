@@ -130,7 +130,7 @@ class ModelServerService {
                     'Content-Type': 'application/json',
                     'Content-Length': Buffer.byteLength(postData)
                 },
-                // 添加超时设置
+                // Add timeout setting
                 timeout: 300000 // 5 minutes
             };
 
@@ -138,7 +138,7 @@ class ModelServerService {
                 console.log(`[ModelServer] Chat response status: ${res.statusCode}`);
 
                 if (res.statusCode !== 200) {
-                    // 读取错误响应体以获取详细信息
+                    // Read error response body to get detailed info
                     let errorBody = '';
                     res.on('data', (chunk) => { errorBody += chunk.toString(); });
                     res.on('end', () => {

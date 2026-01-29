@@ -1,6 +1,6 @@
 """
-代码执行模块
-沙箱执行、pytest 测试、错误分类
+Code Execution Module
+Sandbox execution, pytest testing, error classification
 """
 
 import os
@@ -17,27 +17,27 @@ from .types import ErrorType, ExecutionResult
 
 logger = logging.getLogger(__name__)
 
-# 默认超时时间
+# Default timeout
 DEFAULT_TIMEOUT = 10
 
 
 class CodeExecutor:
     """
-    代码执行器
+    Code Executor
     
-    功能：
-    1. 沙箱执行（subprocess + timeout）
-    2. pytest 集成测试
-    3. 错误分类
-    4. 边界用例测试
+    Features:
+    1. Sandbox execution (subprocess + timeout)
+    2. pytest integration testing
+    3. Error classification
+    4. Boundary case testing
     """
     
     def __init__(self, timeout: int = DEFAULT_TIMEOUT):
         """
-        初始化执行器
+        Initialize executor
         
         Args:
-            timeout: 执行超时时间（秒）
+            timeout: Execution timeout (seconds)
         """
         self.timeout = timeout
     
@@ -48,15 +48,15 @@ class CodeExecutor:
         timeout: Optional[int] = None
     ) -> ExecutionResult:
         """
-        执行代码并运行测试
+        Execute code and run tests
         
         Args:
-            code: 待执行代码
-            test_code: 测试代码
-            timeout: 超时时间
+            code: Code to execute
+            test_code: Test code
+            timeout: Timeout
             
         Returns:
-            执行结果
+            Execution result
         """
         timeout = timeout or self.timeout
         
@@ -78,26 +78,26 @@ class CodeExecutor:
         timeout: Optional[int] = None
     ) -> ExecutionResult:
         """
-        使用 pytest 执行测试
+        Execute tests using pytest
         
         Args:
-            code: 待测试代码
-            test_code: pytest 格式测试代码
-            timeout: 超时时间
+            code: Code to test
+            test_code: pytest format test code
+            timeout: Timeout
             
         Returns:
-            执行结果
+            Execution result
         """
         timeout = timeout or self.timeout
         
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             
-            # 写入代码文件
+            # Write code file
             code_file = tmpdir_path / "solution.py"
             code_file.write_text(code, encoding="utf-8")
             
-            # 写入测试文件
+            # Write test file
             test_content = f"""
 # Import the solution
 from solution import solve
@@ -108,7 +108,7 @@ from solution import solve
             test_file = tmpdir_path / "test_solution.py"
             test_file.write_text(test_content, encoding="utf-8")
             
-            # 运行 pytest
+            # Run pytest
             start_time = time.perf_counter()
             
             try:
@@ -123,7 +123,7 @@ from solution import solve
                 
                 execution_time_ms = (time.perf_counter() - start_time) * 1000
                 
-                # 解析结果
+                # Parse results
                 if proc.returncode == 0:
                     passed, total = self._parse_pytest_counts(proc.stdout)
                     return ExecutionResult(
@@ -155,13 +155,13 @@ from solution import solve
                 return ExecutionResult(
                     passed=False,
                     error_type=ErrorType.TIMEOUT,
-                    error_message=f"执行超时 ({timeout}s)",
+                    error_message=f"Execution timeout ({timeout}s)",
                     execution_time_ms=timeout * 1000,
                 )
     
     def _run_in_subprocess(self, code: str, timeout: int) -> ExecutionResult:
         """
-        在子进程中执行代码
+        Execute code in subprocess
         """
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
             f.write(code)
@@ -202,7 +202,7 @@ from solution import solve
             return ExecutionResult(
                 passed=False,
                 error_type=ErrorType.TIMEOUT,
-                error_message=f"执行超时 ({timeout}s)",
+                error_message=f"Execution timeout ({timeout}s)",
                 execution_time_ms=timeout * 1000,
             )
         finally:
@@ -213,7 +213,7 @@ from solution import solve
     
     def _classify_error(self, error_output: str) -> ErrorType:
         """
-        根据错误信息分类错误类型
+        Classify error type based on error message
         """
         error_lower = error_output.lower()
         
@@ -248,7 +248,7 @@ from solution import solve
     
     def _extract_error_message(self, output: str) -> str:
         """
-        从输出中提取错误消息
+        Extract error message from output
         """
         lines = output.split('\n')
         error_lines = []
@@ -264,7 +264,7 @@ from solution import solve
             message = ' | '.join(error_lines[:3])
             return message[:200]
         
-        # 回退：返回最后几行非空行
+        # Fallback: return last few non-empty lines
         non_empty = [l for l in lines if l.strip()]
         if non_empty:
             return ' | '.join(non_empty[-3:])[:200]
@@ -273,7 +273,7 @@ from solution import solve
     
     def _parse_pytest_counts(self, output: str) -> Tuple[int, int]:
         """
-        解析 pytest 输出中的测试统计
+        Parse test statistics from pytest output
         """
         passed_match = re.search(r'(\d+)\s+passed', output)
         failed_match = re.search(r'(\d+)\s+failed', output)
@@ -293,21 +293,21 @@ from solution import solve
         timeout: int = 5
     ) -> List[Tuple[Any, bool, str]]:
         """
-        运行边界用例测试
+        Run boundary case tests
         
         Returns:
-            [(输入, 是否通过, 错误信息), ...]
+            [(input, passed, error_message), ...]
         """
         boundary_cases = [
-            [],           # 空数组
-            [0],          # 单元素
+            [],           # Empty array
+            [0],          # Single element
             [1],
             [-1],
-            [0, 0],       # 全相同
+            [0, 0],       # All same
             [1, 1, 1],
-            [-1, -1],     # 全负数
-            list(range(100)),  # 大数组
-            list(range(100, 0, -1)),  # 递减
+            [-1, -1],     # All negative
+            list(range(100)),  # Large array
+            list(range(100, 0, -1)),  # Decreasing
         ]
         
         results = []
@@ -334,7 +334,7 @@ except Exception as e:
 
 def generate_random_input(problem_type: str = "array", size: Optional[int] = None) -> Any:
     """
-    生成随机测试输入
+    Generate random test input
     """
     import random
     

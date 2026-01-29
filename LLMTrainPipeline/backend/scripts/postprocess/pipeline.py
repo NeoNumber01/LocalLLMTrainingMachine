@@ -1,6 +1,6 @@
 """
-代码后处理主管线
-整合所有模块，实现完整的"自愈流程"
+Code Post-processing Main Pipeline
+Integrates all modules to implement complete "self-healing flow"
 """
 
 import time
@@ -24,28 +24,28 @@ logger = logging.getLogger(__name__)
 
 class CodePipeline:
     """
-    LLM 代码后处理主管线
+    LLM Code Post-processing Main Pipeline
     
-    处理流程：
-    1. Extract - 代码抽取
-    2. Normalize - 接口规范化
-    3. Validate - 静态验证
-    4. Execute - 运行测试
-    5. Fix Loop - 修复循环
+    Processing Flow:
+    1. Extract - Code extraction
+    2. Normalize - Interface normalization
+    3. Validate - Static validation
+    4. Execute - Run tests
+    5. Fix Loop - Fix loop
     
-    参考 LeoLLM 的 14 阶段处理管线设计
+    Reference LeoLLM's 14-phase processing pipeline design
     """
     
     def __init__(self, config: Optional[PipelineConfig] = None):
         """
-        初始化管线
+        Initialize pipeline
         
         Args:
-            config: 管线配置
+            config: Pipeline configuration
         """
         self.config = config or PipelineConfig()
         
-        # 初始化各模块
+        # Initialize modules
         self.extractor = CodeExtractor()
         self.normalizer = CodeNormalizer()
         self.validator = CodeValidator()
@@ -59,20 +59,20 @@ class CodePipeline:
         signature: Optional[str] = None
     ) -> PipelineResult:
         """
-        执行完整的后处理流程
+        Execute complete post-processing flow
         
         Args:
-            raw_output: LLM 的原始输出
-            test_code: 测试代码
-            signature: 期望的函数签名
+            raw_output: LLM's raw output
+            test_code: Test code
+            signature: Expected function signature
             
         Returns:
-            处理结果
+            Processing result
         """
         start_time = time.perf_counter()
         signature = signature or self.config.default_signature
         
-        # 初始化结果
+        # Initialize result
         result = PipelineResult(
             success=False,
             final_code="",
@@ -83,10 +83,10 @@ class CodePipeline:
         
         try:
             # ================================================================
-            # Phase 1: Extract - 代码抽取
+            # Phase 1: Extract - Code extraction
             # ================================================================
             if self.config.enable_extract:
-                result.add_log("Phase 1: 代码抽取")
+                result.add_log("Phase 1: Code extraction")
                 current_code = self.extractor.extract(current_code)
                 result.phases_completed.append("extract")
                 result.phase_results.append(PhaseResult(
@@ -97,15 +97,15 @@ class CodePipeline:
             
             if not current_code.strip():
                 result.error_type = ErrorType.SYNTAX_ERROR
-                result.error_message = "抽取后代码为空"
+                result.error_message = "Code is empty after extraction"
                 result.final_code = self._create_fallback(signature)
                 return self._finalize_result(result, start_time)
             
             # ================================================================
-            # Phase 2: Normalize - 接口规范化
+            # Phase 2: Normalize - Interface normalization
             # ================================================================
             if self.config.enable_normalize:
-                result.add_log("Phase 2: 接口规范化")
+                result.add_log("Phase 2: Interface normalization")
                 current_code = self.normalizer.normalize(
                     current_code, signature, self.config.function_name
                 )
@@ -117,24 +117,24 @@ class CodePipeline:
                 ))
             
             # ================================================================
-            # Phase 3: Validate - 静态验证
+            # Phase 3: Validate - Static validation
             # ================================================================
             if self.config.enable_validate:
-                result.add_log("Phase 3: 静态验证")
+                result.add_log("Phase 3: Static validation")
                 valid, error_type, error_msg = self.validator.validate(
                     current_code, self.config.function_name
                 )
                 
                 if not valid:
-                    result.add_log(f"验证失败: {error_type} - {error_msg}")
+                    result.add_log(f"Validation failed: {error_type} - {error_msg}")
                     
-                    # 尝试规则修复
+                    # Try rule-based fix
                     if self.config.enable_rule_fix:
                         current_code, fixes = self._run_fix_loop(
                             current_code, error_type, error_msg, signature, result
                         )
                         
-                        # 重新验证
+                        # Re-validate
                         valid, error_type, error_msg = self.validator.validate(
                             current_code, self.config.function_name
                         )
@@ -151,14 +151,14 @@ class CodePipeline:
                 if not valid:
                     result.error_type = error_type
                     result.error_message = error_msg
-                    # 尝试生成回退代码
+                    # Try to generate fallback code
                     current_code = self.fixer.generate_fallback(current_code, signature)
             
             # ================================================================
-            # Phase 4: Execute - 运行测试（如果有测试代码）
+            # Phase 4: Execute - Run tests (if test code exists)
             # ================================================================
             if test_code:
-                result.add_log("Phase 4: 运行测试")
+                result.add_log("Phase 4: Run tests")
                 exec_result = self.executor.execute_with_tests(current_code, test_code)
                 
                 result.execution_time_ms = exec_result.execution_time_ms
@@ -172,9 +172,9 @@ class CodePipeline:
                 ))
                 
                 if not exec_result.passed:
-                    result.add_log(f"测试失败: {exec_result.error_type} - {exec_result.error_message}")
+                    result.add_log(f"Test failed: {exec_result.error_type} - {exec_result.error_message}")
                     
-                    # 尝试修复
+                    # Try to fix
                     if self.config.enable_rule_fix:
                         current_code, fixes = self._run_fix_loop(
                             current_code, 
@@ -184,9 +184,9 @@ class CodePipeline:
                             result
                         )
                         
-                        # 重新测试
+                        # Re-test
                         exec_result = self.executor.execute_with_tests(current_code, test_code)
-                        result.add_log(f"重新测试: {'通过' if exec_result.passed else '失败'}")
+                        result.add_log(f"Re-test: {'Passed' if exec_result.passed else 'Failed'}")
                         
                         if exec_result.passed:
                             result.success = True
@@ -199,7 +199,7 @@ class CodePipeline:
                 else:
                     result.success = True
             else:
-                # 没有测试代码，只做静态验证
+                # No test code, only do static validation
                 try:
                     import ast
                     ast.parse(current_code)
@@ -212,7 +212,7 @@ class CodePipeline:
             result.final_code = current_code
             
         except Exception as e:
-            logger.exception("管线处理异常")
+            logger.exception("Pipeline processing exception")
             result.error_type = ErrorType.RUNTIME_ERROR
             result.error_message = str(e)
             result.final_code = current_code or self._create_fallback(signature)
@@ -228,28 +228,28 @@ class CodePipeline:
         result: PipelineResult
     ) -> Tuple[str, list]:
         """
-        运行修复循环
+        Run fix loop
         """
         all_fixes = []
         
         for attempt in range(self.config.max_rule_fix_attempts):
-            result.add_log(f"修复尝试 {attempt + 1}/{self.config.max_rule_fix_attempts}")
+            result.add_log(f"Fix attempt {attempt + 1}/{self.config.max_rule_fix_attempts}")
             result.rule_fix_attempts += 1
             
             code, fixes = self.fixer.fix(code, error_type, error_message, signature)
             all_fixes.extend(fixes)
             
             if fixes:
-                result.add_log(f"应用修复: {', '.join(fixes)}")
+                result.add_log(f"Applied fixes: {', '.join(fixes)}")
                 result.fixes_applied.extend(fixes)
             
-            # 检查是否修复成功
+            # Check if fix succeeded
             valid, new_error_type, new_error_msg = self.validator.validate(
                 code, self.config.function_name
             )
             
             if valid:
-                result.add_log("修复成功")
+                result.add_log("Fix successful")
                 break
             
             error_type = new_error_type
@@ -258,14 +258,14 @@ class CodePipeline:
         return code, all_fixes
     
     def _create_fallback(self, signature: str) -> str:
-        """创建回退代码"""
+        """Create fallback code"""
         sig = signature.strip()
         if not sig.endswith(':'):
             sig += ':'
         return f"{sig}\n    return 0\n"
     
     def _finalize_result(self, result: PipelineResult, start_time: float) -> PipelineResult:
-        """完成结果处理"""
+        """Finalize result processing"""
         result.total_time_ms = (time.perf_counter() - start_time) * 1000
         return result
     
@@ -276,21 +276,21 @@ class CodePipeline:
         signature: Optional[str] = None
     ) -> list:
         """
-        批量处理多个输出
+        Batch process multiple outputs
         
         Args:
-            outputs: LLM 输出列表
-            test_codes: 对应的测试代码列表
-            signature: 函数签名
+            outputs: LLM output list
+            test_codes: Corresponding test code list
+            signature: Function signature
             
         Returns:
-            处理结果列表
+            List of processing results
         """
         test_codes = test_codes or [""] * len(outputs)
         results = []
         
         for i, (output, test_code) in enumerate(zip(outputs, test_codes)):
-            logger.info(f"处理 {i + 1}/{len(outputs)}")
+            logger.info(f"Processing {i + 1}/{len(outputs)}")
             result = self.process(output, test_code, signature)
             results.append(result)
         
@@ -298,13 +298,13 @@ class CodePipeline:
     
     def get_statistics(self, results: list) -> dict:
         """
-        计算处理统计信息
+        Calculate processing statistics
         
         Args:
-            results: PipelineResult 列表
+            results: PipelineResult list
             
         Returns:
-            统计信息字典
+            Statistics dictionary
         """
         if not results:
             return {}
@@ -312,18 +312,18 @@ class CodePipeline:
         total = len(results)
         success_count = sum(1 for r in results if r.success)
         
-        # 错误分类统计
+        # Error category statistics
         error_counts = {}
         for r in results:
             if r.error_type:
                 error_name = r.error_type.value
                 error_counts[error_name] = error_counts.get(error_name, 0) + 1
         
-        # 修复统计
+        # Fix statistics
         total_fixes = sum(len(r.fixes_applied) for r in results)
         fix_attempts = sum(r.rule_fix_attempts for r in results)
         
-        # 时间统计
+        # Time statistics
         total_times = [r.total_time_ms for r in results if r.total_time_ms > 0]
         
         return {
@@ -344,7 +344,7 @@ def create_pipeline(
     default_signature: str = "def solve(nums: list[int]) -> int:"
 ) -> CodePipeline:
     """
-    便捷函数：创建管线实例
+    Convenience function: Create pipeline instance
     """
     config = PipelineConfig(
         max_rule_fix_attempts=max_rule_fix,

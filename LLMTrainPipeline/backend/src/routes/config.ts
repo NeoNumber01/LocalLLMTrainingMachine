@@ -4,11 +4,11 @@ import { prisma } from '../db/prisma-client.js';
 
 export async function configRoutes(fastify: FastifyInstance) {
 
-    // GET /api/config/resolved - 获取合并后的配置
+    // GET /api/config/resolved - Get merged configuration
     fastify.get('/resolved', {
         schema: {
             tags: ['Config'],
-            summary: '获取合并后生效配置',
+            summary: 'Get merged effective configuration',
             querystring: {
                 type: 'object',
                 properties: {
@@ -23,7 +23,7 @@ export async function configRoutes(fastify: FastifyInstance) {
         let profileName = query.profileName || 'single_gpu';
         let runOverride = {};
 
-        // 如果提供了 runId，从数据库加载运行配置
+        // If runId is provided, load run configuration from database
         if (query.runId) {
             const run = await prisma.run.findUnique({
                 where: { id: query.runId },
@@ -35,7 +35,7 @@ export async function configRoutes(fastify: FastifyInstance) {
             }
         }
 
-        // 合并三层配置
+        // Merge three-layer configuration
         const config = resolveConfig(profileName, runOverride);
 
         return {
@@ -49,17 +49,17 @@ export async function configRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // GET /api/config/profiles - 列出可用的配置文件
+    // GET /api/config/profiles - List available configuration profiles
     fastify.get('/profiles', {
         schema: {
             tags: ['Config'],
-            summary: '列出可用的配置文件',
+            summary: 'List available configuration profiles',
         },
     }, async (request, reply) => {
         return {
             profiles: [
-                { name: 'single_gpu', description: '单 GPU 配置' },
-                { name: 'multi_gpu_fsdp', description: '多 GPU FSDP 配置' },
+                { name: 'single_gpu', description: 'Single GPU configuration' },
+                { name: 'multi_gpu_fsdp', description: 'Multi GPU FSDP configuration' },
             ],
         };
     });

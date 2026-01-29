@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""测试后处理管线"""
+"""Test post-processing pipeline"""
 
 from postprocess import CodePipeline, PipelineConfig
 
-# 测试用例 1: 带 Markdown 的代码
+# Test case 1: Code with Markdown
 raw_output_1 = """Here is my solution:
 
 ```python
@@ -18,7 +18,7 @@ def solve(nums):
 That's my answer!
 """
 
-# 测试用例 2: 纯代码
+# Test case 2: Pure code
 raw_output_2 = """def solve(nums):
     n = len(nums)
     if n == 0:
@@ -26,7 +26,7 @@ raw_output_2 = """def solve(nums):
     return sum(nums) // n
 """
 
-# 测试用例 3: 缺少 import 的代码
+# Test case 3: Code missing import
 raw_output_3 = """```python
 def solve(nums):
     q = deque()
@@ -40,7 +40,7 @@ def test_pipeline():
     pipeline = CodePipeline()
     
     print("=" * 60)
-    print("测试 1: 带 Markdown 注释的代码")
+    print("Test 1: Code with Markdown comments")
     print("=" * 60)
     result = pipeline.process(raw_output_1, '', 'def solve(nums: list[int]) -> int:')
     print(f"Success: {result.success}")
@@ -51,7 +51,7 @@ def test_pipeline():
     print(result.final_code)
     
     print("\n" + "=" * 60)
-    print("测试 2: 纯代码")
+    print("Test 2: Pure code")
     print("=" * 60)
     result = pipeline.process(raw_output_2, '', 'def solve(nums: list[int]) -> int:')
     print(f"Success: {result.success}")
@@ -60,7 +60,7 @@ def test_pipeline():
     print(result.final_code)
     
     print("\n" + "=" * 60)
-    print("测试 3: 缺少 import 的代码")
+    print("Test 3: Code missing import")
     print("=" * 60)
     result = pipeline.process(raw_output_3, '', 'def solve(nums: list[int]) -> int:')
     print(f"Success: {result.success}")

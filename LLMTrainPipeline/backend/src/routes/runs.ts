@@ -7,11 +7,11 @@ import { ConfigSchema } from '../config/schema.js';
 
 export async function runsRoutes(fastify: FastifyInstance) {
 
-    // GET /api/runs - 获取所有运行
+    // GET /api/runs - Get all runs
     fastify.get('/', {
         schema: {
             tags: ['Runs'],
-            summary: '获取所有训练运行',
+            summary: 'Get all training runs',
             querystring: {
                 type: 'object',
                 properties: {
@@ -55,11 +55,11 @@ export async function runsRoutes(fastify: FastifyInstance) {
         return response;
     });
 
-    // POST /api/runs - 创建新运行
+    // POST /api/runs - Create new run
     fastify.post('/', {
         schema: {
             tags: ['Runs'],
-            summary: '创建新训练运行',
+            summary: 'Create new training run',
             body: {
                 type: 'object',
                 required: ['name', 'type', 'modelId', 'datasetId', 'config'],
@@ -69,7 +69,7 @@ export async function runsRoutes(fastify: FastifyInstance) {
                     modelId: { type: 'string' },
                     datasetId: { type: 'string' },
                     evalDatasetId: { type: 'string' },
-                    adapterId: { type: 'string' },  // 用于评测时指定使用的 adapter
+                    adapterId: { type: 'string' },  // Specify adapter to use during evaluation
                     profileName: { type: 'string' },
                     config: { type: 'object' },
                 },
@@ -81,13 +81,13 @@ export async function runsRoutes(fastify: FastifyInstance) {
         // P0-SAFETY: Validate config structure
         const validationResult = ConfigSchema.deepPartial().safeParse(body.config);
         if (!validationResult.success) {
-            return reply.status(400).send({ 
-                error: 'Invalid configuration', 
-                details: validationResult.error.format() 
+            return reply.status(400).send({
+                error: 'Invalid configuration',
+                details: validationResult.error.format()
             });
         }
 
-        // 验证 model 和 dataset 存在
+        // Validate model and dataset exist
         const [model, dataset] = await Promise.all([
             prisma.model.findUnique({ where: { id: body.modelId } }),
             prisma.dataset.findUnique({ where: { id: body.datasetId } }),
@@ -100,7 +100,7 @@ export async function runsRoutes(fastify: FastifyInstance) {
             return reply.status(400).send({ error: 'Dataset not found' });
         }
 
-        // 创建运行记录
+        // Create run record
         const run = await prisma.run.create({
             data: {
                 id: `run_${uuid().slice(0, 5)}`,
@@ -110,15 +110,15 @@ export async function runsRoutes(fastify: FastifyInstance) {
                 modelId: body.modelId,
                 datasetId: body.datasetId,
                 evalDatasetId: body.evalDatasetId,
-                sourceRunId: (body as any).sourceRunId,  // P1: 关联来源训练 run
+                sourceRunId: (body as any).sourceRunId,  // P1: Link to source training run
                 profileName: body.profileName || 'single_gpu',
                 configJson: JSON.stringify(body.config),
             },
             include: { model: true, dataset: true },
         });
 
-        // 如果提供了 adapterId，创建 adapter artifact 以便评测时使用
-        // 这样 run-executor.ts 中的评测逻辑就能通过 Artifact 找到 adapterPath
+        // If adapterId is provided, create adapter artifact for evaluation use
+        // So run-executor.ts evaluation logic can find adapterPath via Artifact
         if ((body as any).adapterId) {
             const adapter = await prisma.adapter.findUnique({ where: { id: (body as any).adapterId } });
             if (adapter && adapter.path) {
@@ -134,7 +134,7 @@ export async function runsRoutes(fastify: FastifyInstance) {
             }
         }
 
-        // 加入队列执行
+        // Add to execution queue
         await enqueueRun(run.id, run.profileName, body.config);
 
         return {
@@ -146,11 +146,11 @@ export async function runsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // GET /api/runs/:id - 获取运行详情
+    // GET /api/runs/:id - Get run details
     fastify.get<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Runs'],
-            summary: '获取运行详情',
+            summary: 'Get run details',
             params: {
                 type: 'object',
                 properties: { id: { type: 'string' } },
@@ -184,15 +184,15 @@ export async function runsRoutes(fastify: FastifyInstance) {
             config,
             artifacts: run.artifacts.map(a => a.path),
             evalResult,
-            loraStats: run.loraStats, // P0-FEAT: 返回 LoRA 统计信息
+            loraStats: run.loraStats, // P0-FEAT: Return LoRA statistics
         };
     });
 
-    // POST /api/runs/:id/stop - 停止运行
+    // POST /api/runs/:id/stop - Stop run
     fastify.post<{ Params: { id: string } }>('/:id/stop', {
         schema: {
             tags: ['Runs'],
-            summary: '停止运行',
+            summary: 'Stop run',
         },
     }, async (request, reply) => {
         try {
@@ -203,13 +203,13 @@ export async function runsRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // ============== 任务队列管理 API ==============
+    // ============== Task Queue Management API ==============
 
-    // GET /api/runs/queue - 获取队列中的所有任务
+    // GET /api/runs/queue - Get all tasks in queue
     fastify.get('/queue', {
         schema: {
             tags: ['Runs'],
-            summary: '获取任务队列列表',
+            summary: 'Get task queue list',
             response: {
                 200: {
                     type: 'object',
@@ -249,11 +249,11 @@ export async function runsRoutes(fastify: FastifyInstance) {
         return { activeRun, queue };
     });
 
-    // POST /api/runs/:id/reorder - 重排任务在队列中的位置
+    // POST /api/runs/:id/reorder - Reorder task position in queue
     fastify.post<{ Params: { id: string }; Body: { position: number } }>('/:id/reorder', {
         schema: {
             tags: ['Runs'],
-            summary: '重排队列任务位置',
+            summary: 'Reorder queue task position',
             params: {
                 type: 'object',
                 properties: { id: { type: 'string' } },
@@ -276,15 +276,15 @@ export async function runsRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // POST /api/runs/:id/cancel-queue - 取消排队（将任务从队列中移除）
+    // POST /api/runs/:id/cancel-queue - Cancel queue (remove task from queue)
     fastify.post<{ Params: { id: string } }>('/:id/cancel-queue', {
         schema: {
             tags: ['Runs'],
-            summary: '取消任务排队',
+            summary: 'Cancel task queue',
         },
     }, async (request, reply) => {
         try {
-            // 使用现有的 stopRun，它已支持停止 queued 状态的任务
+            // Use existing stopRun, it already supports stopping queued tasks
             await stopRun(request.params.id);
             return { success: true, message: 'Run removed from queue' };
         } catch (error) {
@@ -292,11 +292,11 @@ export async function runsRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // POST /api/runs/:id/clone - 克隆运行配置
+    // POST /api/runs/:id/clone - Clone run configuration
     fastify.post<{ Params: { id: string } }>('/:id/clone', {
         schema: {
             tags: ['Runs'],
-            summary: '克隆运行配置',
+            summary: 'Clone run configuration',
         },
     }, async (request, reply) => {
         const sourceRun = await prisma.run.findUnique({
@@ -321,18 +321,18 @@ export async function runsRoutes(fastify: FastifyInstance) {
             },
         });
 
-        // 加入执行队列
+        // Add to execution queue
         const config = JSON.parse(sourceRun.configJson);
         await enqueueRun(newRun.id, sourceRun.profileName, config);
 
         return { id: newRun.id, name: newRun.name };
     });
 
-    // DELETE /api/runs/:id - 删除运行及其关联文件
+    // DELETE /api/runs/:id - Delete run and associated files
     fastify.delete<{ Params: { id: string }; Querystring: { deleteFiles?: string } }>('/:id', {
         schema: {
             tags: ['Runs'],
-            summary: '删除运行及其关联文件',
+            summary: 'Delete run and associated files',
             querystring: {
                 type: 'object',
                 properties: {
@@ -342,9 +342,9 @@ export async function runsRoutes(fastify: FastifyInstance) {
         },
     }, async (request, reply) => {
         const runId = request.params.id;
-        const deleteFiles = request.query.deleteFiles !== 'false'; // 默认删除文件
+        const deleteFiles = request.query.deleteFiles !== 'false'; // Default: delete files
 
-        // 1. 查找 Run 以获取相关信息
+        // 1. Find Run to get related information
         const run = await prisma.run.findUnique({
             where: { id: runId },
             include: { artifacts: true }
@@ -354,12 +354,12 @@ export async function runsRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Run not found' });
         }
 
-        // 2. 删除数据库记录 (级联删除会自动清理 RunEvent, RunMetric, Artifact 等)
+        // 2. Delete database records (cascade delete automatically cleans up RunEvent, RunMetric, Artifact, etc.)
         await prisma.run.delete({
             where: { id: runId },
         });
 
-        // 3. 删除本地文件
+        // 3. Delete local files
         const deletedPaths: string[] = [];
         const errors: string[] = [];
 
@@ -367,7 +367,7 @@ export async function runsRoutes(fastify: FastifyInstance) {
             const fs = await import('fs');
             const path = await import('path');
 
-            // 删除 run 输出目录
+            // Delete run output directory
             const runOutputDir = path.resolve(`./storage/runs/${runId}`);
             if (fs.existsSync(runOutputDir)) {
                 try {
@@ -378,13 +378,13 @@ export async function runsRoutes(fastify: FastifyInstance) {
                 }
             }
 
-            // 删除 artifacts 中记录的其他文件 (如果路径在 run 目录外)
+            // Delete other files recorded in artifacts (if paths are outside run directory)
             for (const artifact of run.artifacts) {
                 const artifactPath = path.isAbsolute(artifact.path)
                     ? artifact.path
                     : path.resolve(artifact.path);
 
-                // 避免重复删除已在 runOutputDir 中的文件
+                // Avoid re-deleting files already in runOutputDir
                 if (!artifactPath.startsWith(runOutputDir) && fs.existsSync(artifactPath)) {
                     try {
                         const stats = fs.statSync(artifactPath);
@@ -411,22 +411,22 @@ export async function runsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // GET /api/runs/:id/logs/stream - SSE 日志流
+    // GET /api/runs/:id/logs/stream - SSE log stream
     fastify.get<{ Params: { id: string } }>('/:id/logs/stream', {
         schema: {
             tags: ['Runs'],
-            summary: 'SSE 日志流',
+            summary: 'SSE log stream',
         },
     }, async (request, reply) => {
         const runId = request.params.id;
 
-        // 检查 run 是否存在
+        // Check if run exists
         const run = await prisma.run.findUnique({ where: { id: runId } });
         if (!run) {
             return reply.status(404).send({ error: 'Run not found' });
         }
 
-        // 设置 SSE headers
+        // Set SSE headers
         reply.raw.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
@@ -434,7 +434,7 @@ export async function runsRoutes(fastify: FastifyInstance) {
             'Access-Control-Allow-Origin': '*',
         });
 
-        // 首先发送历史日志
+        // First send historical logs
         const events = await prisma.runEvent.findMany({
             where: { runId },
             orderBy: { timestamp: 'asc' },
@@ -451,7 +451,7 @@ export async function runsRoutes(fastify: FastifyInstance) {
             reply.raw.write(`data: ${data}\n\n`);
         }
 
-        // 订阅实时事件
+        // Subscribe to real-time events
         const emitter = getRunEmitter(runId);
         const handler = (event: any) => {
             reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
@@ -459,17 +459,17 @@ export async function runsRoutes(fastify: FastifyInstance) {
 
         emitter.on('event', handler);
 
-        // 客户端断开时清理
+        // Clean up when client disconnects
         request.raw.on('close', () => {
             emitter.off('event', handler);
         });
     });
 
-    // GET /api/runs/:id/metrics - 获取指标
+    // GET /api/runs/:id/metrics - Get metrics
     fastify.get<{ Params: { id: string } }>('/:id/metrics', {
         schema: {
             tags: ['Runs'],
-            summary: '获取运行指标',
+            summary: 'Get run metrics',
         },
     }, async (request, reply) => {
         const metrics = await prisma.runMetric.findMany({
@@ -477,11 +477,11 @@ export async function runsRoutes(fastify: FastifyInstance) {
             orderBy: { step: 'asc' },
         });
 
-        // P0-FIX: 过滤掉没有 lr 的异常步骤
+        // P0-FIX: Filter out abnormal steps without lr
         return metrics
             .map(m => {
                 const extra = m.extraJson ? JSON.parse(m.extraJson) : null;
-                // 转换字段名以匹配前端期望的格式 (gradNorm -> grad_norm)
+                // Convert field names to match frontend expected format (gradNorm -> grad_norm)
                 const normalizedExtra = extra ? {
                     lr: extra.lr,
                     grad_norm: extra.gradNorm ?? extra.grad_norm,
@@ -496,14 +496,14 @@ export async function runsRoutes(fastify: FastifyInstance) {
                     extra: normalizedExtra,
                 };
             })
-            .filter(m => m.extra?.lr != null);  // 只保留有 lr 的有效训练步骤
+            .filter(m => m.extra?.lr != null);  // Only keep valid training steps with lr
     });
 
-    // GET /api/runs/:id/eval - 获取完整评估结果
+    // GET /api/runs/:id/eval - Get full evaluation results
     fastify.get<{ Params: { id: string } }>('/:id/eval', {
         schema: {
             tags: ['Runs'],
-            summary: '获取完整评估结果',
+            summary: 'Get full evaluation results',
         },
     }, async (request, reply) => {
         const run = await prisma.run.findUnique({
@@ -547,11 +547,11 @@ export async function runsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // GET /api/runs/:id/artifacts - 获取产物列表
+    // GET /api/runs/:id/artifacts - Get artifact list
     fastify.get<{ Params: { id: string } }>('/:id/artifacts', {
         schema: {
             tags: ['Runs'],
-            summary: '获取产物列表',
+            summary: 'Get artifact list',
         },
     }, async (request, reply) => {
         const artifacts = await prisma.artifact.findMany({
@@ -568,11 +568,11 @@ export async function runsRoutes(fastify: FastifyInstance) {
         }));
     });
 
-    // GET /api/runs/:id/artifacts/:artifactId/download - 下载产物文件
+    // GET /api/runs/:id/artifacts/:artifactId/download - Download artifact file
     fastify.get<{ Params: { id: string; artifactId: string } }>('/:id/artifacts/:artifactId/download', {
         schema: {
             tags: ['Runs'],
-            summary: '下载产物文件',
+            summary: 'Download artifact file',
         },
     }, async (request, reply) => {
         const artifact = await prisma.artifact.findUnique({
@@ -583,7 +583,7 @@ export async function runsRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Artifact not found' });
         }
 
-        // 构建文件路径
+        // Build file path
         const fs = await import('fs');
         const path = await import('path');
         const archiver = await import('archiver');
@@ -592,13 +592,13 @@ export async function runsRoutes(fastify: FastifyInstance) {
         let artifactPath = '';
 
         if (path.isAbsolute(artifactPathRaw)) {
-            // 绝对路径直接使用
+            // Absolute path, use directly
             artifactPath = artifactPathRaw;
         } else if (artifactPathRaw.startsWith('./') || artifactPathRaw.startsWith('../')) {
-            // 相对于项目根目录的路径（如 ./storage/runs/run_xxx/checkpoint-10）
+            // Relative to project root (e.g. ./storage/runs/run_xxx/checkpoint-10)
             artifactPath = path.resolve(artifactPathRaw);
         } else {
-            // 相对于 run 输出目录的路径（如 checkpoint-10）
+            // Relative to run output directory (e.g. checkpoint-10)
             artifactPath = path.resolve(`./storage/runs/${request.params.id}`, artifactPathRaw);
         }
 
@@ -612,29 +612,29 @@ export async function runsRoutes(fastify: FastifyInstance) {
         const stats = fs.statSync(artifactPath);
 
         if (stats.isDirectory()) {
-            // 如果是目录，自动打包成 zip 文件下载
+            // If directory, auto-package as zip for download
             const dirName = path.basename(artifactPath);
             const zipFileName = `${dirName}.zip`;
 
             reply.header('Content-Disposition', `attachment; filename="${zipFileName}"`);
             reply.header('Content-Type', 'application/zip');
 
-            // archiver 是 CommonJS 模块，需要从 default 导出获取
+            // archiver is CommonJS module, need to get from default export
             const archiverFn = (archiver as any).default || archiver;
             const archive = archiverFn('zip', { zlib: { level: 6 } });
 
             archive.on('error', (err: any) => {
                 console.error('Archive error:', err);
-                // 避免因错误抛出未处理异常
+                // Avoid throwing unhandled exception on error
             });
 
-            // 将目录内容添加到 zip
+            // Add directory contents to zip
             archive.directory(artifactPath, dirName);
             archive.finalize();
 
             return reply.send(archive);
         } else {
-            // 普通文件直接下载
+            // Regular file, download directly
             const fileName = path.basename(artifact.path);
             const fileStream = fs.createReadStream(artifactPath);
 

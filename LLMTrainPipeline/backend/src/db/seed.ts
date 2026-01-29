@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 async function main() {
     console.log('🌱 Seeding database...');
 
-    // 清理现有数据
+    // Clear existing data
     await prisma.runMetric.deleteMany();
     await prisma.runEvent.deleteMany();
     await prisma.artifact.deleteMany();
@@ -19,7 +19,7 @@ async function main() {
 
     console.log('  ✓ Cleared existing data');
 
-    // 创建模型
+    // Create models
     const models = await Promise.all([
         prisma.model.create({
             data: {
@@ -60,7 +60,7 @@ async function main() {
     ]);
     console.log(`  ✓ Created ${models.length} models`);
 
-    // 创建数据集
+    // Create datasets
     const datasets = await Promise.all([
         prisma.dataset.create({
             data: {
@@ -121,7 +121,7 @@ async function main() {
     ]);
     console.log(`  ✓ Created ${datasets.length} datasets`);
 
-    // 创建适配器
+    // Create adapters
     const adapters = await Promise.all([
         prisma.adapter.create({
             data: {
@@ -168,7 +168,7 @@ async function main() {
     ]);
     console.log(`  ✓ Created ${adapters.length} adapters`);
 
-    // 创建运行记录
+    // Create run records
     const runs = await Promise.all([
         prisma.run.create({
             data: {
@@ -271,7 +271,7 @@ async function main() {
     ]);
     console.log(`  ✓ Created ${runs.length} runs`);
 
-    // 为运行添加产物
+    // Add artifacts to runs
     await Promise.all([
         prisma.artifact.create({
             data: {
@@ -324,7 +324,7 @@ async function main() {
     ]);
     console.log('  ✓ Created artifacts');
 
-    // 为运行添加一些事件
+    // Add some events to runs
     await Promise.all([
         prisma.runEvent.create({
             data: {
@@ -357,7 +357,7 @@ async function main() {
     ]);
     console.log('  ✓ Created run events');
 
-    // 创建报告
+    // Create reports
     await Promise.all([
         prisma.report.create({
             data: {

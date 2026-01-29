@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-单元测试: 格式注册表模块
+Unit Tests: Format Registry Module
 
 Usage:
     python3 test_format_registry.py
@@ -20,7 +20,7 @@ from format_registry import (
 
 
 class TestHelperFunctions(unittest.TestCase):
-    """测试辅助函数"""
+    """Test helper functions"""
     
     def test_safe_str_with_string(self):
         self.assertEqual(safe_str("hello"), "hello")
@@ -52,7 +52,7 @@ class TestHelperFunctions(unittest.TestCase):
 
 
 class TestFormatDetection(unittest.TestCase):
-    """测试格式检测"""
+    """Test format detection"""
     
     def setUp(self):
         self.registry = DatasetFormatRegistry()
@@ -125,7 +125,7 @@ class TestFormatDetection(unittest.TestCase):
             "prompt": "Write a function",
             "code": "def func(): pass"
         }
-        self.assertEqual(self.registry.detect_format(sample), "taco")  # taco 优先
+        self.assertEqual(self.registry.detect_format(sample), "taco")  # taco takes priority
     
     def test_detect_qa_basic(self):
         sample = {
@@ -171,7 +171,7 @@ class TestFormatDetection(unittest.TestCase):
 
 
 class TestFormatConversion(unittest.TestCase):
-    """测试格式转换"""
+    """Test format conversion"""
     
     def setUp(self):
         self.registry = DatasetFormatRegistry()
@@ -248,11 +248,11 @@ class TestFormatConversion(unittest.TestCase):
             "canonical_solution": "pass"
         }
         messages = self.registry.convert_to_messages(sample)
-        # 应该有 system prompt
+        # Should have system prompt
         self.assertTrue(any(m["role"] == "system" for m in messages))
     
     def test_assistant_content_not_empty(self):
-        """确保所有转换结果的 assistant 内容非空"""
+        """Ensure all conversion results have non-empty assistant content"""
         test_samples = [
             {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]},
             {"instruction": "do it", "output": "done"},
@@ -268,7 +268,7 @@ class TestFormatConversion(unittest.TestCase):
 
 
 class TestRegistryAPI(unittest.TestCase):
-    """测试注册表 API"""
+    """Test registry API"""
     
     def test_list_formats(self):
         registry = DatasetFormatRegistry()
@@ -307,7 +307,7 @@ class TestRegistryAPI(unittest.TestCase):
 
 
 class TestConvenienceFunctions(unittest.TestCase):
-    """测试便捷函数"""
+    """Test convenience functions"""
     
     def test_detect_format_function(self):
         sample = {"instruction": "test", "output": "result"}

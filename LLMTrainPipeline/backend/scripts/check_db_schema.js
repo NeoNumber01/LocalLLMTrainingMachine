@@ -13,7 +13,7 @@ async function main() {
 
     const db = new Database(dbPath, { readonly: true });
 
-    // 查看 LoraStats 表结构
+    // Check LoraStats table schema
     const tableInfo = db.prepare("PRAGMA table_info('LoraStats')").all();
 
     console.log('\n========== LoraStats Table Schema ==========');

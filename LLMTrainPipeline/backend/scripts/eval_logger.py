@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Evaluation Logger - 收集评测元信息用于学术论文
+Evaluation Logger - Collect evaluation metadata for academic papers
 
-功能:
-- 收集评测运行元信息 (eval run ID, 时间, seed, git commit)
-- 收集模型checkpoint信息
-- 收集环境和硬件信息
-- 收集生成配置 (temperature, top_p, k)
-- 收集判题配置 (timeout, sandbox)
-- 收集数据集信息 (split, 样本数, 难度分布)
-- 收集样本级证据 (prompt, code, verdict)
-- 收集后处理统计
+Features:
+- Collect evaluation run metadata (eval run ID, time, seed, git commit)
+- Collect model checkpoint information
+- Collect environment and hardware information
+- Collect generation config (temperature, top_p, k)
+- Collect judge config (timeout, sandbox)
+- Collect dataset information (split, sample count, difficulty distribution)
+- Collect sample-level evidence (prompt, code, verdict)
+- Collect post-processing statistics
 
 Usage:
     from eval_logger import EvalLogger
@@ -22,7 +22,7 @@ Usage:
         base_model_name="Qwen/Qwen2.5-Coder-1.5B",
         checkpoint_path="/path/to/checkpoint",
     )
-    # ... 评测过程 ...
+    # ... evaluation process ...
     logger.add_sample_result(eval_log, sample_result)
     logger.finalize(eval_log)
     logger.save_to_file(eval_log, "output/eval_summary.json")
@@ -48,7 +48,7 @@ logger = logging.getLogger("EvalLogger")
 
 @dataclass
 class EvalEnvironmentInfo:
-    """评测环境信息"""
+    """Evaluation environment information"""
     os_version: str
     python_version: str
     pytorch_version: str
@@ -63,8 +63,8 @@ class EvalEnvironmentInfo:
 
 @dataclass
 class GenerationSettings:
-    """生成/解码配置"""
-    k: int = 10                          # pass@k 的 k
+    """Generation/Decoding configuration"""
+    k: int = 10                          # k for pass@k
     temperature: float = 0.8
     top_p: float = 0.95
     top_k: Optional[int] = None
@@ -78,7 +78,7 @@ class GenerationSettings:
 
 @dataclass
 class JudgeSettings:
-    """判题配置"""
+    """Judge configuration"""
     timeout_seconds: int = 10
     memory_limit_mb: Optional[int] = None
     sandbox_mode: str = "subprocess"     # "subprocess" | "docker" | "none"
@@ -90,7 +90,7 @@ class JudgeSettings:
 
 @dataclass
 class DatasetInfo:
-    """评测数据集信息"""
+    """Evaluation dataset information"""
     dataset_name: str
     dataset_version: Optional[str] = None
     dataset_hash: Optional[str] = None
@@ -105,29 +105,29 @@ class DatasetInfo:
 
 @dataclass
 class SampleResult:
-    """样本级评测结果 (用于失败案例分析)"""
+    """Sample-level evaluation result (for failure case analysis)"""
     task_id: str
     sample_index: int = 0
     difficulty: Optional[str] = None
     category: Optional[str] = None
     
-    # 代码
+    # Code
     prompt: str = ""
     raw_output: str = ""
     post_process_output: Optional[str] = None
     
-    # 执行结果
+    # Execution result
     traceback: Optional[str] = None
     failing_test_input: Optional[str] = None
     expected_output: Optional[str] = None
     actual_output: Optional[str] = None
     execution_time_ms: float = 0.0
     
-    # 判定结果
+    # Judgment result
     verdict: str = "CE"                  # "AC" | "WA" | "TLE" | "RE" | "CE"
     error_type: Optional[str] = None
     
-    # 后处理追踪
+    # Post-processing tracking
     post_process_steps: List[str] = field(default_factory=list)
     post_process_rounds: int = 0
     was_fixed: bool = False
@@ -135,13 +135,13 @@ class SampleResult:
 
 @dataclass
 class PostProcessStats:
-    """后处理统计"""
+    """Post-processing statistics"""
     enabled: bool = True
     total_attempts: int = 0
     successful_fixes: int = 0
     avg_fix_rounds: float = 0.0
     
-    # 修复前后对比
+    # Before/after fix comparison
     pass_at_1_before: float = 0.0
     pass_at_1_after: float = 0.0
     syntax_error_before: float = 0.0
@@ -153,13 +153,13 @@ class PostProcessStats:
     wrong_answer_before: float = 0.0
     wrong_answer_after: float = 0.0
     
-    # 修复原因分布
+    # Fix reason distribution
     fix_reason_distribution: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
 class MetricsOverall:
-    """总体评测指标"""
+    """Overall evaluation metrics"""
     pass_at_1: float = 0.0
     pass_at_5: float = 0.0
     pass_at_10: float = 0.0
@@ -172,7 +172,7 @@ class MetricsOverall:
 
 @dataclass
 class ErrorDistribution:
-    """错误类型分布"""
+    """Error type distribution"""
     syntax_error_rate: float = 0.0
     indentation_error_rate: float = 0.0
     runtime_error_rate: float = 0.0
@@ -186,7 +186,7 @@ class ErrorDistribution:
 
 @dataclass
 class TimeStats:
-    """执行时间统计"""
+    """Execution time statistics"""
     mean_runtime_ms: float = 0.0
     p50_runtime_ms: float = 0.0
     p95_runtime_ms: float = 0.0
@@ -195,38 +195,38 @@ class TimeStats:
 
 @dataclass
 class SegmentBreakdown:
-    """分段统计"""
+    """Segment statistics"""
     by_difficulty: Dict[str, Dict[str, float]] = field(default_factory=dict)
     by_category: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass
 class PerProblemStats:
-    """P1: 每题通过率分布统计"""
-    min_pass_rate: float = 0.0       # 最低题目通过率
-    max_pass_rate: float = 0.0       # 最高题目通过率
-    median_pass_rate: float = 0.0    # 中位数题目通过率
-    mean_pass_rate: float = 0.0      # 平均题目通过率
-    std_pass_rate: float = 0.0       # 标准差
+    """P1: Per-problem pass rate distribution statistics"""
+    min_pass_rate: float = 0.0       # Minimum problem pass rate
+    max_pass_rate: float = 0.0       # Maximum problem pass rate
+    median_pass_rate: float = 0.0    # Median problem pass rate
+    mean_pass_rate: float = 0.0      # Average problem pass rate
+    std_pass_rate: float = 0.0       # Standard deviation
     total_problems: int = 0
 
 
 @dataclass
 class FailureExample:
-    """P0: 单个失败案例"""
+    """P0: Single failure case"""
     task_id: str
     difficulty: Optional[str] = None
     category: Optional[str] = None
-    prompt_preview: str = ""          # 完整 prompt
-    output_preview: str = ""          # 完整 output
-    traceback_preview: str = ""       # 完整 traceback
+    prompt_preview: str = ""          # Complete prompt
+    output_preview: str = ""          # Complete output
+    traceback_preview: str = ""       # Complete traceback
     error_type: str = ""
     verdict: str = ""
 
 
 @dataclass
 class FailureExamplesByType:
-    """P0: 按错误类型分组的代表性失败案例"""
+    """P0: Representative failure cases grouped by error type"""
     syntax_error: List[FailureExample] = field(default_factory=list)
     runtime_error: List[FailureExample] = field(default_factory=list)
     assertion_error: List[FailureExample] = field(default_factory=list)
@@ -239,90 +239,90 @@ class FailureExamplesByType:
 
 @dataclass
 class EvaluationProtocol:
-    """评测方法论配置 - 用于明确 pass@k 计算口径"""
-    # Pass@k 计算说明
+    """Evaluation methodology configuration - used to clarify pass@k calculation standard"""
+    # Pass@k calculation description
     pass_at_k_definition: str = "success if any of the first k samples passes all tests"
     samples_per_task: int = 1  # numSamples (N)
     temperature: float = 0.2
     top_p: float = 0.95
     sorting_method: str = "generation_order"  # generation_order | logprob | random
     
-    # Compile Rate 定义
+    # Compile Rate definition
     compile_rate_definition: str = "percentage of samples that run without SyntaxError during exec"
     
-    # 超时和边界情况处理
+    # Timeout and edge case handling
     timeout_handling: str = "counted as failure (TLE)"
     memory_limit_handling: str = "counted as failure (MLE)"
 
 
 @dataclass
 class CodeQualityMetrics:
-    """代码质量指标 - 展示在主报告中"""
+    """Code quality metrics - displayed in main report"""
     avg_code_length: float = 0.0
     avg_line_count: float = 0.0
-    extra_io_rate: float = 0.0  # 包含 print/input 的比例
-    interface_compliance_rate: float = 0.0  # 包含函数定义的比例
+    extra_io_rate: float = 0.0  # Percentage containing print/input
+    interface_compliance_rate: float = 0.0  # Percentage containing function definition
 
 
 @dataclass
 class ReproducibilityInfo:
-    """可复现性信息"""
+    """Reproducibility information"""
     python_seed: Optional[int] = None
     numpy_seed: Optional[int] = None
     torch_seed: Optional[int] = None
     evaluator_version: str = "1.0.0"
-    checkpoint_hash: Optional[str] = None  # 模型文件的 MD5 前 8 位
+    checkpoint_hash: Optional[str] = None  # First 8 chars of model file MD5
 
 
 @dataclass
 class EvalSummary:
-    """完整评测日志"""
-    # 元信息
+    """Complete evaluation log"""
+    # Metadata
     eval_run_id: str
     eval_time: str
     seed: int
     git_commit: Optional[str]
     
-    # 模型信息
+    # Model information
     base_model_name: str
     checkpoint_path: str
     checkpoint_step: Optional[int] = None
     checkpoint_epoch: Optional[int] = None
     
-    # 配置
+    # Configuration
     environment: Optional[EvalEnvironmentInfo] = None
     generation_config: Optional[GenerationSettings] = None
     judge_config: Optional[JudgeSettings] = None
     dataset_info: Optional[DatasetInfo] = None
     
-    # P1: 评测方法论配置
+    # P1: Evaluation methodology configuration
     evaluation_protocol: Optional[EvaluationProtocol] = None
     
-    # P1: 可复现性信息
+    # P1: Reproducibility information
     reproducibility_info: Optional[ReproducibilityInfo] = None
     
-    # 指标
+    # Metrics
     metrics_overall: Optional[MetricsOverall] = None
     error_distribution: Optional[ErrorDistribution] = None
     time_stats: Optional[TimeStats] = None
     segment_breakdown: Optional[SegmentBreakdown] = None
     
-    # P1: 每题通过率分布
+    # P1: Per-problem pass rate distribution
     per_problem_stats: Optional[PerProblemStats] = None
     
-    # P0: 按错误类型分组的代表性失败案例
+    # P0: Representative failure cases grouped by error type
     failure_examples_by_type: Optional[FailureExamplesByType] = None
     
-    # P2: 代码质量指标
+    # P2: Code quality metrics
     code_quality: Optional[CodeQualityMetrics] = None
     
-    # 后处理
+    # Post-processing
     postprocess_stats: Optional[PostProcessStats] = None
     
-    # 样本结果 (只保存失败+典型案例)
+    # Sample results (only save failures + typical cases)
     sample_results: List[SampleResult] = field(default_factory=list)
     
-    # 产物路径
+    # Artifact paths
     artifact_paths: Dict[str, str] = field(default_factory=dict)
 
 
@@ -331,11 +331,11 @@ class EvalSummary:
 # ============================================================================
 
 class EvalLogger:
-    """评测日志收集器"""
+    """Evaluation log collector"""
     
     @staticmethod
     def collect_environment() -> EvalEnvironmentInfo:
-        """收集评测环境信息"""
+        """Collect evaluation environment information"""
         import importlib.metadata
         
         # OS version
@@ -405,7 +405,7 @@ class EvalLogger:
     
     @staticmethod
     def get_git_commit() -> Optional[str]:
-        """获取当前Git commit hash"""
+        """Get current Git commit hash"""
         try:
             result = subprocess.run(
                 ['git', 'rev-parse', 'HEAD'],
@@ -421,7 +421,7 @@ class EvalLogger:
     
     @staticmethod
     def compute_dataset_hash(dataset_path: str) -> Optional[str]:
-        """计算数据集文件hash"""
+        """Calculate dataset file hash"""
         try:
             if os.path.isfile(dataset_path):
                 with open(dataset_path, 'rb') as f:
@@ -432,7 +432,7 @@ class EvalLogger:
     
     @staticmethod
     def generate_eval_run_id() -> str:
-        """生成评测运行ID"""
+        """Generate evaluation run ID"""
         return f"eval_run_{datetime.now().strftime('%Y_%m_%d_%H%M%S')}"
     
     def create_eval_log(
@@ -446,11 +446,11 @@ class EvalLogger:
         generation_settings: Optional[GenerationSettings] = None,
         judge_settings: Optional[JudgeSettings] = None,
     ) -> EvalSummary:
-        """创建新的评测日志"""
+        """Create new evaluation log"""
         if eval_run_id is None:
             eval_run_id = self.generate_eval_run_id()
         
-        # 设置默认判题配置
+        # Set default judge configuration
         if judge_settings is None:
             judge_settings = JudgeSettings(python_version=platform.python_version())
         else:
@@ -486,7 +486,7 @@ class EvalLogger:
         difficulty_distribution: Optional[Dict[str, int]] = None,
         category_distribution: Optional[Dict[str, int]] = None,
     ) -> None:
-        """设置数据集信息"""
+        """Set dataset information"""
         log.dataset_info = DatasetInfo(
             dataset_name=dataset_name,
             dataset_hash=self.compute_dataset_hash(dataset_path),
@@ -498,7 +498,7 @@ class EvalLogger:
         )
     
     def add_sample_result(self, log: EvalSummary, result: SampleResult) -> None:
-        """添加样本级结果"""
+        """Add sample-level result"""
         log.sample_results.append(result)
     
     def set_metrics(
@@ -513,7 +513,7 @@ class EvalLogger:
         total_passed: int = 0,
         total_compiled: int = 0,
     ) -> None:
-        """设置总体指标"""
+        """Set overall metrics"""
         log.metrics_overall = MetricsOverall(
             pass_at_1=pass_at_1,
             pass_at_5=pass_at_5,
@@ -536,7 +536,7 @@ class EvalLogger:
         import_error_rate: float = 0.0,
         **kwargs
     ) -> None:
-        """设置错误分布"""
+        """Set error distribution"""
         log.error_distribution = ErrorDistribution(
             syntax_error_rate=syntax_error_rate,
             runtime_error_rate=runtime_error_rate,
@@ -555,7 +555,7 @@ class EvalLogger:
         p95_runtime_ms: float,
         max_runtime_ms: float,
     ) -> None:
-        """设置时间统计"""
+        """Set time statistics"""
         log.time_stats = TimeStats(
             mean_runtime_ms=mean_runtime_ms,
             p50_runtime_ms=p50_runtime_ms,
@@ -574,7 +574,7 @@ class EvalLogger:
         fix_reason_distribution: Optional[Dict[str, int]] = None,
         **kwargs
     ) -> None:
-        """设置后处理统计"""
+        """Set post-processing statistics"""
         avg_fix_rounds = kwargs.get('avg_fix_rounds', 0.0)
         log.postprocess_stats = PostProcessStats(
             enabled=enabled,
@@ -599,7 +599,7 @@ class EvalLogger:
         timeout_handling: str = "counted as failure (TLE)",
         memory_limit_handling: str = "counted as failure (MLE)",
     ) -> None:
-        """P1: 设置评测方法论配置"""
+        """P1: Set evaluation methodology configuration"""
         log.evaluation_protocol = EvaluationProtocol(
             pass_at_k_definition=pass_at_k_definition,
             samples_per_task=samples_per_task,
@@ -620,7 +620,7 @@ class EvalLogger:
         evaluator_version: str = "1.0.0",
         checkpoint_hash: Optional[str] = None,
     ) -> None:
-        """P1: 设置可复现性信息"""
+        """P1: Set reproducibility information"""
         log.reproducibility_info = ReproducibilityInfo(
             python_seed=python_seed,
             numpy_seed=numpy_seed,
@@ -637,7 +637,7 @@ class EvalLogger:
         extra_io_rate: float,
         interface_compliance_rate: float,
     ) -> None:
-        """P2: 设置代码质量指标"""
+        """P2: Set code quality metrics"""
         log.code_quality = CodeQualityMetrics(
             avg_code_length=avg_code_length,
             avg_line_count=avg_line_count,
@@ -651,7 +651,7 @@ class EvalLogger:
         by_difficulty: Dict[str, Dict[str, float]],
         by_category: Dict[str, Dict[str, float]],
     ) -> None:
-        """P1: 设置分段统计"""
+        """P1: Set segment statistics"""
         log.segment_breakdown = SegmentBreakdown(
             by_difficulty=by_difficulty,
             by_category=by_category,
@@ -662,7 +662,7 @@ class EvalLogger:
         log: EvalSummary,
         pass_rates: List[float],
     ) -> None:
-        """P1: 设置每题通过率分布统计"""
+        """P1: Set per-problem pass rate distribution statistics"""
         import statistics
         
         if not pass_rates:
@@ -684,16 +684,16 @@ class EvalLogger:
         max_per_type: int = 3,
     ) -> None:
         """
-        P0: 按错误类型分组设置代表性失败案例
+        P0: Set representative failure cases grouped by error type
         
-        多样化采样策略:
-        1. 优先选择不同 task_id 的样本（避免同题重复）
-        2. 如果同类错误都来自同一题，则选择不同 sample_index
-        3. 随机打乱以避免总是选择最先出现的样本
+        Diverse sampling strategy:
+        1. Prioritize samples from different task_ids (avoid same problem repetition)
+        2. If all errors of the same type come from the same problem, select different sample_indices
+        3. Random shuffle to avoid always selecting the first samples
         """
         import random
         
-        # 按错误类型分组失败样本
+        # Group failure samples by error type
         failures_by_type: Dict[str, List[SampleResult]] = {
             'syntax_error': [],
             'runtime_error': [],
@@ -710,7 +710,7 @@ class EvalLogger:
             
             error_type = sample.error_type or ''
             
-            # 映射错误类型到分组
+            # Map error type to category
             if 'syntax' in error_type.lower() or 'indentation' in error_type.lower():
                 category = 'syntax_error'
             elif 'runtime' in error_type.lower() or 'name' in error_type.lower() or 'type' in error_type.lower():
@@ -728,24 +728,24 @@ class EvalLogger:
             
             failures_by_type[category].append(sample)
         
-        # 多样化采样
+        # Diverse sampling
         result = FailureExamplesByType()
         
         for category, samples in failures_by_type.items():
             if not samples:
                 continue
             
-            # 随机打乱以避免总是选择同样的样本
+            # Random shuffle to avoid always selecting same samples
             random.shuffle(samples)
             
-            # 按 task_id 分组，优先选择不同题目的样本
+            # Group by task_id, prioritize samples from different problems
             task_groups: Dict[str, List[SampleResult]] = {}
             for s in samples:
                 if s.task_id not in task_groups:
                     task_groups[s.task_id] = []
                 task_groups[s.task_id].append(s)
             
-            # 轮询选择（确保多样性）
+            # Round-robin selection (ensure diversity)
             selected: List[FailureExample] = []
             task_ids = list(task_groups.keys())
             random.shuffle(task_ids)
@@ -759,26 +759,26 @@ class EvalLogger:
                         task_id=sample.task_id,
                         difficulty=sample.difficulty,
                         category=sample.category,
-                        prompt_preview=sample.prompt,  # 完整保存，不截断
-                        output_preview=sample.raw_output,  # 完整保存，不截断
-                        traceback_preview=sample.traceback or '',  # 完整保存，不截断
+                        prompt_preview=sample.prompt,  # Save complete, no truncation
+                        output_preview=sample.raw_output,  # Save complete, no truncation
+                        traceback_preview=sample.traceback or '',  # Save complete, no truncation
                         error_type=sample.error_type or '',
                         verdict=sample.verdict,
                     ))
-                    # 如果该 task_id 没有更多样本了，移除
+                    # If no more samples for this task_id, remove it
                     if not task_groups[task_id]:
                         task_ids.remove(task_id)
                 idx += 1
-                if idx > len(samples):  # 防止无限循环
+                if idx > len(samples):  # Prevent infinite loop
                     break
             
-            # 设置到结果
+            # Set to result
             setattr(result, category, selected)
         
         log.failure_examples_by_type = result
     
     def finalize(self, log: EvalSummary) -> EvalSummary:
-        """完成评测日志"""
+        """Finalize evaluation log"""
         logger.info("=" * 60)
         logger.info("EVALUATION SUMMARY")
         logger.info("=" * 60)
@@ -799,7 +799,7 @@ class EvalLogger:
         return log
     
     def save_to_file(self, log: EvalSummary, output_path: str) -> None:
-        """保存日志到JSON文件"""
+        """Save log to JSON file"""
         os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
         
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -808,11 +808,11 @@ class EvalLogger:
         logger.info(f"Eval summary saved to: {output_path}")
     
     def to_json(self, log: EvalSummary) -> str:
-        """转换为JSON字符串"""
+        """Convert to JSON string"""
         return json.dumps(asdict(log), ensure_ascii=False)
     
     def to_dict(self, log: EvalSummary) -> dict:
-        """转换为字典"""
+        """Convert to dictionary"""
         return asdict(log)
 
 
@@ -821,12 +821,12 @@ class EvalLogger:
 # ============================================================================
 
 def create_eval_log(**kwargs) -> EvalSummary:
-    """快速创建评测日志的便捷函数"""
+    """Convenience function to quickly create evaluation log"""
     return EvalLogger().create_eval_log(**kwargs)
 
 
 def output_eval_log_event(log: EvalSummary):
-    """输出评测日志事件到stdout供后端解析"""
+    """Output evaluation log event to stdout for backend parsing"""
     print(json.dumps({
         "type": "eval_log",
         "data": asdict(log)
@@ -834,7 +834,7 @@ def output_eval_log_event(log: EvalSummary):
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # Test code
     logging.basicConfig(level=logging.INFO)
     
     eval_logger = EvalLogger()
@@ -844,7 +844,7 @@ if __name__ == "__main__":
         checkpoint_path="/path/to/checkpoint",
     )
     
-    # 设置数据集
+    # Set dataset
     eval_logger.set_dataset_info(
         log,
         dataset_path="./data/test.jsonl",
@@ -854,7 +854,7 @@ if __name__ == "__main__":
         total_samples=1640,
     )
     
-    # 设置指标
+    # Set metrics
     eval_logger.set_metrics(
         log,
         pass_at_1=45.2,
@@ -865,7 +865,7 @@ if __name__ == "__main__":
         total_samples=1640,
     )
     
-    # 设置错误分布
+    # Set error distribution
     eval_logger.set_error_distribution(
         log,
         syntax_error_rate=5.2,
@@ -874,7 +874,7 @@ if __name__ == "__main__":
         wrong_answer_rate=35.2,
     )
     
-    # 设置后处理统计
+    # Set post-processing statistics
     eval_logger.set_postprocess_stats(
         log,
         enabled=True,
@@ -884,7 +884,7 @@ if __name__ == "__main__":
         pass_at_1_after=45.2,
     )
     
-    # 完成
+    # Finalize
     eval_logger.finalize(log)
     
     print("\n--- JSON Output ---")

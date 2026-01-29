@@ -15,7 +15,7 @@ from threading import Thread
 import uvicorn
 import json
 
-# 配置日志
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -25,12 +25,12 @@ logger = logging.getLogger("ModelServer")
 app = FastAPI()
 
 # ============================================================
-# P0-FIX: 推理并发保护 - 使用 AsyncIO Lock 避免请求冲突
+# P0-FIX: Inference concurrency protection - Use AsyncIO Lock to avoid request conflicts
 # ============================================================
 inference_lock = asyncio.Lock()
-pending_requests = 0  # 等待中的请求计数
+pending_requests = 0  # Pending request count
 
-# 全局状态
+# Global state
 model_state = {
     "model": None,
     "tokenizer": None,
@@ -41,7 +41,7 @@ model_state = {
 
 @app.get("/queue")
 async def get_queue_status():
-    """返回推理队列状态，用于前端显示等待信息"""
+    """Return inference queue status for frontend display"""
     return {
         "is_busy": inference_lock.locked(),
         "pending_requests": pending_requests
@@ -75,7 +75,7 @@ async def load_model(request: LoadRequest):
     target_adapter = request.adapter_path
     target_quantization = request.quantization
     
-    # 检查是否需要重新加载
+    # Check if reload is needed
     if (model_state["model"] is not None and 
         model_state["model_path"] == target_model and 
         model_state["adapter_path"] == target_adapter and
@@ -86,7 +86,7 @@ async def load_model(request: LoadRequest):
     logger.info(f"Loading model: {target_model}, Adapter: {target_adapter}, Quantization: {target_quantization}")
 
     try:
-        # 释放旧模型
+        # Release old model
         if model_state["model"] is not None:
             del model_state["model"]
             del model_state["tokenizer"]
@@ -95,10 +95,10 @@ async def load_model(request: LoadRequest):
             model_state["model"] = None
             model_state["tokenizer"] = None
 
-        # 加载 Tokenizer
+        # Load Tokenizer
         tokenizer = AutoTokenizer.from_pretrained(target_model, trust_remote_code=True)
         
-        # 准备量化配置
+        # Prepare quantization config
         quantization_config = None
         if target_quantization == "4bit":
             logger.info("Using 4-bit quantization")
@@ -112,14 +112,14 @@ async def load_model(request: LoadRequest):
             logger.info("Using 8-bit quantization")
             quantization_config = BitsAndBytesConfig(load_in_8bit=True)
         
-        # 加载 Base Model
-        # 始终使用 device_map="auto" 以避免 bitsandbytes 的 .to() 错误
-        # 并确保正确的显存管理
+        # Load Base Model
+        # Always use device_map="auto" to avoid bitsandbytes .to() errors
+        # and ensure proper VRAM management
         model_kwargs = {
             "trust_remote_code": True,
             "torch_dtype": torch.float16,
-            "device_map": "auto",  # 始终设置，对量化模型至关重要
-            "low_cpu_mem_usage": True,  # 减少 CPU 内存峰值
+            "device_map": "auto",  # Always set, critical for quantized models
+            "low_cpu_mem_usage": True,  # Reduce CPU memory peak
         }
         
         if quantization_config:
@@ -127,7 +127,7 @@ async def load_model(request: LoadRequest):
         
         model = AutoModelForCausalLM.from_pretrained(target_model, **model_kwargs)
 
-        # 加载 Adapter (如果存在)
+        # Load Adapter (if exists)
         if target_adapter and target_adapter.lower() != 'none':
              logger.info(f"Loading LoRA adapter from {target_adapter}")
              model = PeftModel.from_pretrained(model, target_adapter)
@@ -176,13 +176,13 @@ async def chat(request: ChatRequest):
     if model_state["model"] is None:
         raise HTTPException(status_code=400, detail="No model loaded. Call /load first.")
 
-    # P0-FIX: 使用 asyncio.Lock 保护推理过程
-    # 增加等待计数
+    # P0-FIX: Use asyncio.Lock to protect inference process
+    # Increment pending count
     pending_requests += 1
     logger.info(f"Chat request queued. Pending: {pending_requests}")
     
     try:
-        # 等待获取锁 - 其他请求会在此处等待，但不阻塞事件循环
+        # Wait to acquire lock - other requests will wait here without blocking event loop
         async with inference_lock:
             pending_requests -= 1
             logger.info(f"Chat request started. Pending: {pending_requests}")
@@ -190,7 +190,7 @@ async def chat(request: ChatRequest):
             model = model_state["model"]
             tokenizer = model_state["tokenizer"]
 
-            # 准备 Chat Template
+            # Prepare Chat Template
             inputs = tokenizer.apply_chat_template(
                 request.messages,
                 add_generation_prompt=True,
@@ -211,7 +211,7 @@ async def chat(request: ChatRequest):
             thread = Thread(target=model.generate, kwargs=generation_kwargs)
             thread.start()
 
-            # 收集所有生成的 tokens（在锁内完成）
+            # Collect all generated tokens (within lock)
             tokens = []
             try:
                 for token in streamer:
@@ -221,11 +221,11 @@ async def chat(request: ChatRequest):
                 logger.error(f"Generation error: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
             
-            thread.join()  # 确保生成完成
+            thread.join()  # Ensure generation completes
             
             logger.info(f"Chat request completed. Generated {len(tokens)} tokens.")
 
-        # 锁释放后，以流式方式返回结果
+        # After lock release, return results in streaming fashion
         async def response_generator():
             for token in tokens:
                 yield f"data: {json.dumps({'token': token})}\n\n"
@@ -237,7 +237,7 @@ async def chat(request: ChatRequest):
         raise
     except Exception as e:
         logger.error(f"Inference error: {str(e)}")
-        pending_requests = max(0, pending_requests - 1)  # 确保计数正确
+        pending_requests = max(0, pending_requests - 1)  # Ensure count is correct
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

@@ -8,11 +8,11 @@ import { checkAllAdaptersHealth, backupAdapter } from '../services/adapter-guard
 
 export async function adaptersRoutes(fastify: FastifyInstance) {
 
-    // GET /api/adapters - 获取所有适配器
+    // GET /api/adapters - Get all adapters
     fastify.get('/', {
         schema: {
             tags: ['Adapters'],
-            summary: '获取所有适配器',
+            summary: 'Get all adapters',
         },
     }, async (request, reply) => {
         const adapters = await prisma.adapter.findMany({
@@ -37,11 +37,11 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
         return response;
     });
 
-    // GET /api/adapters/:id - 获取适配器详情
+    // GET /api/adapters/:id - Get adapter details
     fastify.get<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Adapters'],
-            summary: '获取适配器详情',
+            summary: 'Get adapter details',
         },
     }, async (request, reply) => {
         const adapter = await prisma.adapter.findUnique({
@@ -69,18 +69,18 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // POST /api/adapters/rescan - 重新扫描适配器目录
+    // POST /api/adapters/rescan - Rescan adapters directory
     fastify.post('/rescan', {
         schema: {
             tags: ['Adapters'],
-            summary: '重新扫描适配器目录',
+            summary: 'Rescan adapters directory',
         },
     }, async (request, reply) => {
         const config = getConfig();
         const factory = getProviderFactory(config);
         const scanner = factory.getScanner();
 
-        // P2-FIX: 从 Settings 读取动态路径，fallback 到默认配置
+        // P2-FIX: Read dynamic path from Settings, fallback to default config
         let adaptersDir = config.storage.adaptersDir;
         try {
             const watchFoldersSetting = await prisma.setting.findUnique({
@@ -107,17 +107,17 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // POST /api/adapters/:id/merge - 合并适配器到基础模型
+    // POST /api/adapters/:id/merge - Merge adapter to base model
     fastify.post<{ Params: { id: string }; Body: { outputName?: string } }>('/:id/merge', {
         schema: {
             tags: ['Adapters'],
-            summary: '合并LoRA适配器到基础模型',
+            summary: 'Merge LoRA adapter to base model',
         },
     }, async (request, reply) => {
         const { id } = request.params;
         const { outputName } = request.body || {};
 
-        // 获取适配器信息
+        // Get adapter information
         const adapter = await prisma.adapter.findUnique({
             where: { id },
         });
@@ -126,7 +126,7 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Adapter not found' });
         }
 
-        // 获取基础模型路径
+        // Get base model path
         const baseModel = await prisma.model.findFirst({
             where: { name: adapter.baseModel },
         });
@@ -144,19 +144,19 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = path.dirname(__filename);
 
-        // 确定输出目录
+        // Determine output directory
         const mergedName = outputName || `${adapter.name}-merged`;
         const outputDir = path.join(config.storage.modelsDir, mergedName);
         const scriptPath = path.resolve(__dirname, '../../scripts/merge_adapter.py');
 
-        // 检查脚本是否存在
+        // Check if script exists
         try {
             await fs.access(scriptPath);
         } catch {
             return reply.status(500).send({ error: 'Merge script not found' });
         }
 
-        // 使用 SSE 返回进度
+        // Use SSE to return progress
         reply.raw.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
@@ -188,7 +188,7 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
                     const event = JSON.parse(line);
                     sendEvent(event);
                 } catch {
-                    // 非 JSON 输出，作为普通日志
+                    // Non-JSON output, treat as regular log
                     sendEvent({ status: 'running', message: line });
                 }
             }
@@ -201,7 +201,7 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
 
         mergeProcess.on('close', async (code) => {
             if (code === 0) {
-                // 合并成功，注册新模型
+                // Merge successful, register new model
                 try {
                     await prisma.model.create({
                         data: {
@@ -230,11 +230,11 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
         });
     });
 
-    // DELETE /api/adapters/:id - 删除适配器记录及可选删除本地文件
+    // DELETE /api/adapters/:id - Delete adapter record and optionally delete local files
     fastify.delete<{ Params: { id: string }; Querystring: { deleteFiles?: string } }>('/:id', {
         schema: {
             tags: ['Adapters'],
-            summary: '删除适配器记录及可选删除本地文件',
+            summary: 'Delete adapter record and optionally delete local files',
             querystring: {
                 type: 'object',
                 properties: {
@@ -243,7 +243,7 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
             }
         },
     }, async (request, reply) => {
-        const deleteFiles = request.query.deleteFiles === 'true'; // 默认不删文件
+        const deleteFiles = request.query.deleteFiles === 'true'; // Default: do not delete files
 
         const adapter = await prisma.adapter.findUnique({
             where: { id: request.params.id },
@@ -253,12 +253,12 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Adapter not found' });
         }
 
-        // 删除数据库记录
+        // Delete database record
         await prisma.adapter.delete({
             where: { id: request.params.id },
         });
 
-        // 可选删除本地文件
+        // Optionally delete local files
         let fileDeleted = false;
         let deleteError: string | undefined;
 
@@ -289,11 +289,11 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // GET /api/adapters/health - 检查所有适配器的健康状态
+    // GET /api/adapters/health - Check health status of all adapters
     fastify.get('/health', {
         schema: {
             tags: ['Adapters'],
-            summary: '检查所有适配器的健康状态',
+            summary: 'Check health status of all adapters',
         },
     }, async (request, reply) => {
         const healthStatuses = await checkAllAdaptersHealth();
@@ -312,11 +312,11 @@ export async function adaptersRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // POST /api/adapters/:id/backup - 手动备份适配器
+    // POST /api/adapters/:id/backup - Manually backup adapter
     fastify.post<{ Params: { id: string } }>('/:id/backup', {
         schema: {
             tags: ['Adapters'],
-            summary: '手动备份指定的适配器',
+            summary: 'Manually backup specified adapter',
         },
     }, async (request, reply) => {
         const adapter = await prisma.adapter.findUnique({

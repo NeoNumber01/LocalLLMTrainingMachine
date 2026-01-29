@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """
-Report Generator - 极其详细丰富完整的训练报告生成器
+Report Generator - Extremely detailed and comprehensive training report generator
 
-该脚本可以独立运行，从训练日志、配置文件和评估结果生成完整的 HTML 报告。
-报告包含：
-- 实验元信息（时间、种子、Git版本）
-- 完整的环境版本信息
-- 硬件配置详情
-- 数据集统计
-- 模型架构信息
-- 训练超参数（完整列表）
-- LoRA 配置详情
-- 训练曲线（Loss、Learning Rate）
-- 所有检查点信息
-- 评估结果（Pass@k、错误分布、执行时间）
-- 完整的原始配置 JSON
+This script can run standalone to generate complete HTML reports from training logs,
+configuration files, and evaluation results.
 
-用法:
+Reports include:
+- Experiment metadata (time, seed, Git version)
+- Complete environment version info
+- Hardware configuration details
+- Dataset statistics
+- Model architecture info
+- Training hyperparameters (complete list)
+- LoRA configuration details
+- Training curves (Loss, Learning Rate)
+- All checkpoint information
+- Evaluation results (Pass@k, error distribution, execution time)
+- Complete raw configuration JSON
+
+Usage:
     python3 report_generator.py --run-dir <run_directory> --output <output.html>
     python3 report_generator.py --config <config.json> --metrics <metrics.json> --output <output.html>
 """
@@ -34,7 +36,7 @@ import math
 
 
 def load_json_file(path: str) -> Dict[str, Any]:
-    """加载 JSON 文件"""
+    """Load a JSON file"""
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -44,15 +46,15 @@ def load_json_file(path: str) -> Dict[str, Any]:
 
 
 def format_number(num: Optional[float]) -> str:
-    """格式化大数字为可读形式"""
+    """Format large numbers to readable form"""
     if num is None:
         return "N/A"
-    # 处理字符串类型的输入
+    # Handle string type input
     if isinstance(num, str):
         try:
             num = float(num)
         except (ValueError, TypeError):
-            return str(num)  # 无法转换则直接返回原字符串
+            return str(num)  # Return original string if cannot convert
     if num >= 1_000_000_000:
         return f"{num / 1_000_000_000:.2f}B"
     elif num >= 1_000_000:
@@ -63,7 +65,7 @@ def format_number(num: Optional[float]) -> str:
 
 
 def format_duration(seconds: Optional[float]) -> str:
-    """格式化持续时间"""
+    """Format duration"""
     if seconds is None:
         return "N/A"
     seconds = int(seconds)
@@ -78,7 +80,7 @@ def format_duration(seconds: Optional[float]) -> str:
 
 
 def get_value(data: Dict, *keys, default=None):
-    """安全获取嵌套字典值"""
+    """Safely get nested dictionary value"""
     for key in keys:
         if isinstance(data, dict) and key in data:
             data = data[key]
@@ -89,20 +91,20 @@ def get_value(data: Dict, *keys, default=None):
 
 def uniform_sample_indices(total_count: int, losses: List[float] = None, max_samples: int = 50) -> List[int]:
     """
-    统一的采样函数 - 从全部数据点中均匀合理地采样
+    Unified sampling function - uniformly sample from all data points
     
-    策略:
-    1. 如果数据量 <= max_samples，返回所有索引
-    2. 否则使用等间距采样（linspace风格），确保包含首尾
-    3. 额外包含 loss 最低点（如果提供了 losses）
+    Strategy:
+    1. If data count <= max_samples, return all indices
+    2. Otherwise use equal-spaced sampling (linspace style), ensuring first and last are included
+    3. Additionally include the lowest loss point (if losses are provided)
     
     Args:
-        total_count: 总数据点数
-        losses: loss 值列表（可选，用于找到最低点）
-        max_samples: 最大采样数量
-        
+        total_count: Total number of data points
+        losses: List of loss values (optional, used to find lowest point)
+        max_samples: Maximum number of samples
+    
     Returns:
-        排序后的采样索引列表
+        Sorted list of sample indices
     """
     if total_count == 0:
         return []
@@ -110,58 +112,58 @@ def uniform_sample_indices(total_count: int, losses: List[float] = None, max_sam
     if total_count == 1:
         return [0]
     
-    # 如果数据量小于等于 max_samples，返回所有索引
+    # If data count less than or equal to max_samples, return all indices
     if total_count <= max_samples:
         return list(range(total_count))
     
-    # 使用等间距采样（linspace风格）
-    # 预留1个位置给最低loss点（如果需要），其余均匀分布
+    # Use equal-spaced sampling (linspace style)
+    # Reserve 1 position for lowest loss point (if needed), distribute rest evenly
     effective_samples = max_samples - 1 if losses else max_samples
     
     sample_indices = set()
     
-    # 等间距采样: 0, step, 2*step, ..., total_count-1
+    # Equal-spaced sampling: 0, step, 2*step, ..., total_count-1
     for i in range(effective_samples):
-        # 计算索引：i * (total_count - 1) / (effective_samples - 1)
-        # 这确保第一个是 0，最后一个是 total_count - 1
+        # Calculate index: i * (total_count - 1) / (effective_samples - 1)
+        # This ensures first is 0, last is total_count - 1
         idx = round(i * (total_count - 1) / (effective_samples - 1))
         sample_indices.add(idx)
     
-    # 添加 loss 最低点
+    # Add lowest loss point
     if losses and len(losses) == total_count:
         min_loss = min(losses)
         min_loss_idx = losses.index(min_loss)
         sample_indices.add(min_loss_idx)
     
-    # 排序返回
+    # Sort and return
     return sorted(sample_indices)
 
 
 # ============================================================================
-# Data Validator - P0 数据一致性检查
+# Data Validator - P0 Data Consistency Checks
 # ============================================================================
 
 class DataValidator:
-    """数据验证器 - 检测报告数据中的不一致性"""
+    """Data Validator - Detect inconsistencies in report data"""
     
     def __init__(self):
         self.warnings: List[str] = []
         self.errors: List[str] = []
     
     def validate_dataset_stats(self, dataset_config: Dict[str, Any]) -> None:
-        """验证数据集统计一致性"""
+        """Validate dataset statistics consistency"""
         total_samples = dataset_config.get("samples", 0) or 0
         train_samples = dataset_config.get("train_samples", 0) or 0
         val_samples = dataset_config.get("val_samples", 0) or 0
         test_samples = dataset_config.get("test_samples", 0) or 0
         
-        # 检查 total_samples < train_samples
+        # Check total_samples < train_samples
         if total_samples < train_samples:
             self.warnings.append(
                 f"Dataset stats mismatch: total_samples({total_samples}) < train_samples({train_samples})"
             )
         
-        # 检查各子集之和是否合理
+        # Check if sum of subsets is reasonable
         subset_sum = train_samples + val_samples + test_samples
         if total_samples > 0 and subset_sum > 0 and subset_sum > total_samples * 1.1:
             self.warnings.append(
@@ -170,37 +172,37 @@ class DataValidator:
     
     def validate_steps(self, planned_steps: Optional[int], actual_steps: Optional[int], 
                        metrics_count: int) -> None:
-        """验证步数一致性 - 不再生成警告，steps 信息已在报告中明确显示"""
-        # 步数差异已在 Key Metrics 中展示（Planned/Logged/Effective Steps），无需警告
+        """Validate step count consistency - no longer generates warnings, step info is shown in report"""
+        # Step differences are shown in Key Metrics (Planned/Logged/Effective Steps), no warning needed
         pass
     
     def validate_learning_rate(self, config_lr: Optional[str], 
                                 initial_lr_from_metrics: Optional[float]) -> None:
-        """验证学习率配置一致性 - 不再生成警告，LR 信息已在报告中明确显示"""
-        # LR 差异已在 Training Configuration 中展示（Config LR vs Actual Initial LR），无需警告
+        """Validate learning rate config consistency - no longer generates warnings, LR info is shown in report"""
+        # LR differences are shown in Training Configuration (Config LR vs Actual Initial LR), no warning needed
         pass
     
     def validate_scheduler(self, scheduler_config: str, lr_values: List[float]) -> str:
-        """检测实际使用的 scheduler 类型"""
+        """Detect actual scheduler type used"""
         if len(lr_values) < 3:
             return scheduler_config
         
-        # 分析 LR 变化模式
-        # Linear: 等差递减
-        # Cosine: 先快后慢
-        # Constant: 不变
+        # Analyze LR change pattern
+        # Linear: equal-difference decreasing
+        # Cosine: fast first then slow
+        # Constant: unchanged
         diffs = [lr_values[i+1] - lr_values[i] for i in range(len(lr_values)-1)]
         
         if all(abs(d) < 1e-10 for d in diffs):
             detected = "constant"
         elif len(diffs) >= 2:
-            # 检查是否接近等差
+            # Check if close to arithmetic progression
             avg_diff = sum(diffs) / len(diffs)
             variance = sum((d - avg_diff) ** 2 for d in diffs) / len(diffs)
-            if variance < 1e-12:  # 非常小的方差 = 线性
+            if variance < 1e-12:  # Very small variance = linear
                 detected = "linear"
             else:
-                detected = "cosine"  # 假设其他情况是 cosine
+                detected = "cosine"  # Assume other cases are cosine
         else:
             detected = scheduler_config
         
@@ -212,28 +214,28 @@ class DataValidator:
         return detected
     
     def get_all_warnings(self) -> List[str]:
-        """获取所有警告"""
+        """Get all warnings"""
         return self.warnings
     
     def get_all_errors(self) -> List[str]:
-        """获取所有错误"""
+        """Get all errors"""
         return self.errors
     
     def has_issues(self) -> bool:
-        """是否有任何问题"""
+        """Check if there are any issues"""
         return len(self.warnings) > 0 or len(self.errors) > 0
 
 
 def deduplicate_metrics(metrics: List[Dict[str, Any]], filter_no_lr: bool = True) -> List[Dict[str, Any]]:
     """
-    按 global_step 去重 metrics，保留每个 step 的最后一条记录。
-    P0-4: 过滤掉无效记录 (loss 为 null/0)。
-    P0-FIX: 如果 filter_no_lr=True，过滤掉没有 lr 的异常步骤。
+    Deduplicate metrics by global_step, keeping the last record for each step.
+    P0-4: Filter out invalid records (loss is null/0).
+    P0-FIX: If filter_no_lr=True, filter out abnormal steps without lr.
     """
     if not metrics:
         return []
     
-    # 按 step 分组，保留最后一条
+    # Group by step, keep the last one
     step_to_metric = {}
     for m in metrics:
         step = m.get("step")
@@ -241,23 +243,23 @@ def deduplicate_metrics(metrics: List[Dict[str, Any]], filter_no_lr: bool = True
             loss = m.get("loss")
             lr = m.get("lr") or m.get("learning_rate")
             
-            # 必须有有效的 loss
+            # Must have valid loss
             if loss is None or loss <= 0:
                 continue
             
-            # P0-FIX: 如果设置了过滤，跳过没有 lr 或 lr=0 的 warmup 步骤
-            # lr=0 表示还没有真正的参数更新（梯度累积期间）
+            # P0-FIX: If filter is set, skip warmup steps without lr or lr=0
+            # lr=0 means no real parameter update yet (during gradient accumulation)
             if filter_no_lr and (lr is None or lr <= 0):
                 continue
                 
             step_to_metric[step] = m
     
-    # 按 step 排序返回
+    # Sort by step and return
     return [step_to_metric[s] for s in sorted(step_to_metric.keys())]
 
 
 def extract_lr_values(metrics: List[Dict[str, Any]]) -> List[float]:
-    """从 metrics 中提取学习率值列表"""
+    """Extract learning rate values from metrics"""
     lr_values = []
     for m in metrics:
         lr = m.get("lr") or m.get("learning_rate")
@@ -271,31 +273,31 @@ def extract_lr_values(metrics: List[Dict[str, Any]]) -> List[float]:
 
 def get_valid_final_loss(metrics: List[Dict[str, Any]]) -> Optional[float]:
     """
-    P0-FIX: 获取有效的最终 loss（有 lr 的最后一个 step）
-    排除训练结束后可能出现的 epoch 平均 loss
+    P0-FIX: Get valid final loss (last step with lr)
+    Exclude epoch average loss that may appear after training ends
     """
     if not metrics:
         return None
     
-    # 从后往前找有 lr 的 step
+    # Search backwards for step with lr
     for m in reversed(metrics):
         loss = m.get("loss")
         lr = m.get("lr") or m.get("learning_rate")
         if loss is not None and loss > 0 and lr is not None:
             return loss
     
-    # 如果没有找到有 lr 的 step，使用倒数第二个
+    # If no step with lr found, use second to last
     if len(metrics) >= 2:
         loss = metrics[-2].get("loss")
         if loss is not None and loss > 0:
             return loss
     
-    # 最后兜底
+    # Last fallback
     return metrics[-1].get("loss") if metrics else None
 
 
 class ReportGenerator:
-    """极其详细丰富完整的报告生成器"""
+    """Extremely detailed and comprehensive report generator"""
     
     def __init__(self):
         self.config: Dict[str, Any] = {}
@@ -308,47 +310,47 @@ class ReportGenerator:
         self.data_quality_stats: Dict[str, Any] = {}  # P2: Data quality analysis
         
     def load_from_directory(self, run_dir: str):
-        """从运行目录加载所有数据"""
+        """Load all data from run directory"""
         run_path = Path(run_dir)
         
-        # 加载配置
+        # Load configuration
         config_path = run_path / "config.json"
         if config_path.exists():
             self.config = load_json_file(str(config_path))
             
-        # 加载训练指标
+        # Load training metrics
         metrics_path = run_path / "metrics.json"
         if metrics_path.exists():
             data = load_json_file(str(metrics_path))
             self.metrics = data if isinstance(data, list) else data.get("metrics", [])
             
-        # 加载评估结果
+        # Load evaluation results
         eval_path = run_path / "eval_result.json"
         if eval_path.exists():
             self.eval_result = load_json_file(str(eval_path))
             
-        # 加载实验元数据
+        # Load experiment metadata
         meta_path = run_path / "experiment_meta.json"
         if meta_path.exists():
             self.experiment_meta = load_json_file(str(meta_path))
             
-        # 加载 LoRA 统计
+        # Load LoRA statistics
         lora_path = run_path / "lora_stats.json"
         if lora_path.exists():
             self.lora_stats = load_json_file(str(lora_path))
             
-        # 加载检查点信息
+        # Load checkpoint information
         checkpoints_path = run_path / "checkpoints.json"
         if checkpoints_path.exists():
             data = load_json_file(str(checkpoints_path))
             self.checkpoints = data if isinstance(data, list) else data.get("checkpoints", [])
             
-        # 加载运行信息
+        # Load run information
         info_path = run_path / "run_info.json"
         if info_path.exists():
             self.run_info = load_json_file(str(info_path))
             
-        # 加载数据质量统计 (P2: Data Quality Analysis)
+        # Load data quality statistics (P2: Data Quality Analysis)
         quality_stats_path = run_path / "data_quality_stats.json"
         if quality_stats_path.exists():
             self.data_quality_stats = load_json_file(str(quality_stats_path))
@@ -357,7 +359,7 @@ class ReportGenerator:
                         metrics_path: Optional[str] = None,
                         eval_path: Optional[str] = None,
                         meta_path: Optional[str] = None):
-        """从单独的文件加载数据"""
+        """Load data from individual files"""
         if config_path and os.path.exists(config_path):
             self.config = load_json_file(config_path)
         if metrics_path and os.path.exists(metrics_path):
@@ -369,7 +371,7 @@ class ReportGenerator:
             self.experiment_meta = load_json_file(meta_path)
             
     def collect_system_info(self) -> Dict[str, Any]:
-        """收集当前系统信息（如果未提供元数据）"""
+        """Collect current system info (if metadata not provided)"""
         info = {
             "os": platform.platform(),
             "python": platform.python_version(),
@@ -406,31 +408,31 @@ class ReportGenerator:
         return info
     
     def generate_markdown(self, title: Optional[str] = None) -> str:
-        """生成极其详细丰富完整的 Markdown 报告"""
+        """Generate extremely detailed and comprehensive Markdown report"""
         
         # =====================================================================
-        # P0: 数据预处理 - 去重并过滤无效的 metrics（与 HTML 保持一致）
+        # P0: Data preprocessing - deduplicate and filter invalid metrics (consistent with HTML)
         # =====================================================================
         deduplicated_metrics = deduplicate_metrics(self.metrics)
         
-        # 提取各部分数据
+        # Extract data from each section
         training_config = self.config.get("training", {})
         lora_config = self.config.get("lora", {})
         model_config = self.config.get("model", {})
         dataset_config = self.config.get("dataset", {})
         
         # =====================================================================
-        # P0: 检测运行类型 - 区分训练和评测报告
+        # P0: Detect run type - distinguish training and evaluation reports
         # =====================================================================
         run_type = self.run_info.get("type", self.config.get("run_type", ""))
         is_eval_run = run_type == "eval" or self.config.get("evaluator") is not None
         
-        # 评测专用配置
+        # Evaluation-specific configuration
         eval_protocol = self.config.get("eval_protocol", {})
         code_quality = self.eval_result.get("codeQuality", self.eval_result.get("code_quality", {}))
         reproducibility = self.config.get("reproducibility", {})
         
-        # P0: 对评测报告修正 dataset 统计 - 使用 eval_result 中的真实数据
+        # P0: Fix dataset stats for evaluation reports - use real data from eval_result
         if is_eval_run:
             eval_total_problems = (self.eval_result.get("totalProblems") or 
                                    self.eval_result.get("total_problems") or 0)
@@ -441,10 +443,10 @@ class ReportGenerator:
                 dataset_config["eval_problems"] = eval_total_problems
                 dataset_config["eval_samples"] = eval_total_samples
         
-        # 系统信息（空字典也视为无数据）
+        # System info (empty dict also treated as no data)
         system_info = self.experiment_meta if self.experiment_meta else self.collect_system_info()
         
-        # 运行信息
+        # Run information
         run_name = title or self.run_info.get("name", self.config.get("run_name", "Training Run"))
         run_id = self.run_info.get("id", "N/A")
         duration = self.run_info.get("duration", "")
@@ -452,40 +454,40 @@ class ReportGenerator:
         git_commit = self.run_info.get("git_commit", "N/A")
         
         # =====================================================================
-        # 训练步数统计 - 区分三种不同概念的 steps
+        # Training steps statistics - distinguish three different concepts of steps
         # =====================================================================
-        # 1. Planned steps: 配置中计划的步数
+        # 1. Planned steps: steps planned in configuration
         planned_steps = training_config.get("total_steps") or training_config.get("planned_steps")
         
-        # 2. Raw logged steps: 原始日志中记录的总步数（包含 warmup/pre-log）
-        # 优先使用从 Node.js 传入的值
+        # 2. Raw logged steps: total steps recorded in raw logs (including warmup/pre-log)
+        # Prioritize value passed from Node.js
         raw_logged_steps_from_config = training_config.get("raw_logged_steps")
         raw_logged_steps = raw_logged_steps_from_config if raw_logged_steps_from_config else (len(self.metrics) if self.metrics else 0)
         
-        # 3. Effective update steps: 真正发生参数更新的步数
-        # 使用 Python 端过滤后的 deduplicated_metrics 的实际长度（最准确）
+        # 3. Effective update steps: steps where parameter updates actually occurred
+        # Use actual length of deduplicated_metrics filtered by Python (most accurate)
         effective_steps = len(deduplicated_metrics) if deduplicated_metrics else 0
         
-        # 用于显示的 total_steps（优先使用 effective_steps）
+        # total_steps for display (prefer effective_steps)
         total_steps = effective_steps if effective_steps > 0 else (planned_steps or "N/A")
         
-        # P0-FIX: 获取有效的 final_loss（有 lr 的最后一个 step）
+        # P0-FIX: Get valid final_loss (last step with lr)
         final_loss = get_valid_final_loss(deduplicated_metrics) if deduplicated_metrics else None
         
-        # 计算 warmup 步骤数（原始日志 - 有效步骤）
+        # Calculate warmup steps (raw logged - effective steps)
         warmup_steps = raw_logged_steps - effective_steps if raw_logged_steps > effective_steps else 0
         
-        # 获取第一个和最后一个有效步骤的 step 号（用于 Note 显示）
+        # Get first and last effective step numbers (for Note display)
         first_effective_step = deduplicated_metrics[0].get("step", 1) if deduplicated_metrics else 1
         last_effective_step = deduplicated_metrics[-1].get("step", effective_steps) if deduplicated_metrics else effective_steps
         
-        # LoRA 统计
+        # LoRA statistics
         lora_stats = self.lora_stats or {}
         trainable_params = lora_stats.get("trainable_params")
         total_params = lora_stats.get("total_params")
         trainable_percent = lora_stats.get("trainable_percent")
         
-        # 评估结果
+        # Evaluation results
         eval_result = self.eval_result or {}
         pass_at_1 = eval_result.get("pass_at_1") or eval_result.get("passAt1")
         pass_at_5 = get_value(eval_result, "pass_at_k", "5") or get_value(eval_result, "passAtK", "5")
@@ -495,7 +497,7 @@ class ReportGenerator:
         error_stats = eval_result.get("error_stats", eval_result.get("errorStats", {}))
         time_stats = eval_result.get("time_stats", eval_result.get("timeStats", {}))
         
-        # 格式化函数
+        # Formatting function
         def fmt(val, suffix="", decimals=2):
             if val is None:
                 return "N/A"
@@ -507,18 +509,18 @@ class ReportGenerator:
         def fmt_na(val):
             return str(val) if val is not None else "N/A"
         
-        # 生成 Markdown
+        # Generate Markdown
         md_lines = []
         
-        # 标题
+        # Title
         md_lines.append(f"# {run_name}")
         md_lines.append("")
-        # P0: 区分报告类型标题
+        # P0: Distinguish report type title
         report_type_label = "Evaluation Report" if is_eval_run else "Training Report"
         md_lines.append(f"> {report_type_label} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         md_lines.append("")
         
-        # 概览
+        # Overview
         md_lines.append("## Overview")
         md_lines.append("")
         md_lines.append(f"| Property | Value |")
@@ -530,7 +532,7 @@ class ReportGenerator:
             md_lines.append(f"| Git Commit | `{git_commit[:7] if len(git_commit) > 7 else git_commit}` |")
         md_lines.append("")
         
-        # 关键指标
+        # Key metrics
         md_lines.append("## Key Metrics")
         md_lines.append("")
         md_lines.append("| Metric | Value |")
@@ -538,11 +540,11 @@ class ReportGenerator:
         md_lines.append(f"| **Pass@1** | {fmt(pass_at_1, '%')} |")
         md_lines.append(f"| Compile Rate | {fmt(compile_rate, '%')} |")
         
-        # P0: 评测报告不显示训练相关指标
+        # P0: Evaluation reports don't show training-related metrics
         if not is_eval_run:
             md_lines.append(f"| Final Loss | {fmt(final_loss, '', 4) if final_loss else 'N/A'} |")
             
-            # 显示三种 steps（如果有差异）
+            # Show three types of steps (if there are differences)
             if planned_steps and (raw_logged_steps != effective_steps or planned_steps != effective_steps):
                 if planned_steps:
                     md_lines.append(f"| Planned Steps | {planned_steps} |")
@@ -555,7 +557,7 @@ class ReportGenerator:
             md_lines.append(f"| Trainable Params | {format_number(trainable_params)} |")
             md_lines.append(f"| Trainable % | {fmt(trainable_percent, '%', 4) if trainable_percent else 'N/A'} |")
         else:
-            # P0: 评测报告显示评测相关统计
+            # P0: Evaluation reports show evaluation-related statistics
             eval_total_problems = dataset_config.get('eval_problems', 0)
             eval_total_samples = dataset_config.get('eval_samples', 0)
             md_lines.append(f"| Total Problems (N_tasks) | {eval_total_problems} |")
@@ -564,12 +566,12 @@ class ReportGenerator:
                 md_lines.append(f"| Sample Size Warning | N_tasks={eval_total_problems} is small |")
         md_lines.append("")
         
-        # P0: 添加步数差异说明（仅训练报告，评测报告不显示）
+        # P0: Add step difference explanation (training reports only, not shown in eval reports)
         if not is_eval_run and warmup_steps > 0:
             md_lines.append(f"> **Note:** Steps 1-{first_effective_step - 1} are pre-update logs during warmup/gradient accumulation (lr=0). Effective parameter updates: {effective_steps} steps (Steps {first_effective_step}-{last_effective_step}).")
             md_lines.append("")
         
-        # 模型信息
+        # Model information
         md_lines.append("## Model")
         md_lines.append("")
         md_lines.append("| Property | Value |")
@@ -580,7 +582,7 @@ class ReportGenerator:
         md_lines.append(f"| Quantization | {fmt_na(lora_config.get('quantization', 'None'))} |")
         md_lines.append("")
         
-        # 数据集信息
+        # Dataset information
         md_lines.append("## Dataset")
         md_lines.append("")
         md_lines.append("| Property | Value |")
@@ -657,7 +659,7 @@ class ReportGenerator:
                     md_lines.append(f"> ❌ **Leakage Assessment: Significant** - {exact_rate:.1f}% exact, {high_sim_rate:.1f}% high similarity. Consider re-splitting data.")
                 md_lines.append("")
         
-        # P0: 训练配置 (仅训练报告，评测报告跳过)
+        # P0: Training configuration (training reports only, skip for eval reports)
         if not is_eval_run:
             md_lines.append("## Training Configuration")
             md_lines.append("")
@@ -668,9 +670,9 @@ class ReportGenerator:
             batch_size = training_config.get('batchSize', 1)
             grad_accum = training_config.get('gradientAccumulation', training_config.get('gradAccum', 8))
             md_lines.append(f"| **Effective Batch Size** | {batch_size * grad_accum} |")
-            # P0-FIX: 区分 Config LR vs Actual Initial LR
+            # P0-FIX: Distinguish Config LR vs Actual Initial LR
             config_lr = training_config.get('lr', training_config.get('learning_rate', 'N/A'))
-            # 从 metrics 的第一步获取实际初始 LR
+            # Get actual initial LR from first step of metrics
             actual_init_lr = None
             if self.metrics and len(self.metrics) > 0:
                 first_metric = self.metrics[0]
@@ -688,7 +690,7 @@ class ReportGenerator:
             md_lines.append(f"| Precision | {training_config.get('precision', 'N/A')} |")
             md_lines.append("")
             
-            # LoRA 配置
+            # LoRA configuration
             if lora_config.get("enabled", True):
                 md_lines.append("## LoRA Configuration")
                 md_lines.append("")
@@ -707,7 +709,7 @@ class ReportGenerator:
                 md_lines.append("")
         
         # =====================================================================
-        # P1: Evaluation Protocol (仅评测报告)
+        # P1: Evaluation Protocol (eval reports only)
         # =====================================================================
         if is_eval_run:
             md_lines.append("## Evaluation Protocol")
@@ -731,7 +733,7 @@ class ReportGenerator:
             md_lines.append(f"| Timeout Handling | Counted as failure (TLE) after {timeout}s |")
             md_lines.append("")
             
-            # 可复现性信息
+            # Reproducibility information
             md_lines.append("### Reproducibility")
             md_lines.append("")
             md_lines.append("| Parameter | Value |")
@@ -741,7 +743,7 @@ class ReportGenerator:
             md_lines.append(f"| Evaluator Version | {reproducibility.get('evaluator_version', '1.0.0')} |")
             md_lines.append("")
         
-        # 评估结果
+        # Evaluation results
         md_lines.append("## Evaluation Results")
         md_lines.append("")
         md_lines.append("### Pass@k Metrics")
@@ -776,7 +778,7 @@ class ReportGenerator:
         md_lines.append(f"| Max Runtime | {fmt(time_stats.get('maxRuntimeMs', time_stats.get('max_runtime_ms')), ' ms')} |")
         md_lines.append("")
         
-        # 环境信息
+        # Environment information
         md_lines.append("## Environment")
         md_lines.append("")
         md_lines.append("| Component | Version |")
@@ -791,7 +793,7 @@ class ReportGenerator:
         md_lines.append(f"| cuDNN | {fmt_na(system_info.get('cudnn') or system_info.get('cudnnVersion'))} |")
         md_lines.append("")
         
-        # 硬件信息
+        # Hardware information
         md_lines.append("## Hardware")
         md_lines.append("")
         md_lines.append("| Component | Details |")
@@ -803,7 +805,7 @@ class ReportGenerator:
         md_lines.append("")
         
         # =====================================================================
-        # P2: Code Quality Metrics (仅评测报告)
+        # P2: Code Quality Metrics (eval reports only)
         # =====================================================================
         if is_eval_run and code_quality:
             md_lines.append("## Code Quality Metrics")
@@ -818,7 +820,7 @@ class ReportGenerator:
             md_lines.append(f"| Avg Line Count | {fmt(code_quality.get('avgLineCount', code_quality.get('avg_line_count')), '', 1)} | Average lines per solution |")
             md_lines.append("")
             
-            # P0-FIX: Extra I/O 详细解释
+            # P0-FIX: Extra I/O detailed explanation
             extra_io_rate = code_quality.get('extraIORate', code_quality.get('extra_io_rate', 0))
             if extra_io_rate and float(extra_io_rate) > 0:
                 md_lines.append("> **📌 About Extra I/O Rate**")
@@ -831,7 +833,7 @@ class ReportGenerator:
         
         # =====================================================================
         # Training Results (kabul-main style comprehensive loss statistics)
-        # P0: 仅在训练报告中显示，评测报告跳过
+        # P0: Only shown in training reports, skip for eval reports
         # =====================================================================
         if not is_eval_run and deduplicated_metrics:
             md_lines.append("## Training Results")
@@ -839,15 +841,15 @@ class ReportGenerator:
             
             # 5.0 Per-Epoch Metrics (kabul-main style)
             # Group metrics by epoch
-            # P0-FIX: HuggingFace Trainer 的 epoch 是小数形式（如 0.1, 0.2...），需要取整后分组
+            # P0-FIX: HuggingFace Trainer epoch is in decimal form (e.g., 0.1, 0.2...), need to round up for grouping
             epochs_data = {}
             for m in deduplicated_metrics:
                 raw_epoch = m.get("epoch")
-                # 如果没有 epoch 字段，默认为 1
+                # If no epoch field, default to 1
                 if raw_epoch is None:
                     epoch = 1
                 else:
-                    # 取整：0.1->1, 0.9->1, 1.0->1, 1.1->2
+                    # Round up: 0.1->1, 0.9->1, 1.0->1, 1.1->2
                     epoch = max(1, int(raw_epoch) + (1 if raw_epoch % 1 > 0 else 0))
                 if epoch not in epochs_data:
                     epochs_data[epoch] = {"losses": [], "eval_loss": None}
@@ -874,26 +876,26 @@ class ReportGenerator:
                     md_lines.append(f"| {int(ep)} | {avg_loss:.4f} | {min_str} | {max_str} | {eval_str} |")
                 md_lines.append("")
             
-            # 计算关键统计（使用过滤后的 metrics）
+            # Calculate key statistics (using filtered metrics)
             losses = [m.get("loss") for m in deduplicated_metrics if m.get("loss") is not None]
             lr_values = [m.get("lr") or m.get("learning_rate") for m in deduplicated_metrics if m.get("lr") or m.get("learning_rate")]
             
             if losses:
                 initial_loss = losses[0]
-                # 获取第一个有效步骤的 step 号（用于显示）
+                # Get first effective step number (for display)
                 first_effective_step = deduplicated_metrics[0].get("step", 1) if deduplicated_metrics else 1
-                # P0-FIX: 使用有效的 final_loss（有 lr 的最后一步）
+                # P0-FIX: Use valid final_loss (last step with lr)
                 final_loss_val = get_valid_final_loss(deduplicated_metrics)
                 if final_loss_val is None:
                     final_loss_val = losses[-1]  # fallback
-                # 获取最后一个有效步骤的 step 号
+                # Get last effective step number
                 last_effective_step = deduplicated_metrics[-1].get("step", len(deduplicated_metrics)) if deduplicated_metrics else len(losses)
                 min_loss = min(losses)
                 max_loss = max(losses)
                 avg_loss = sum(losses) / len(losses)
                 loss_reduction = ((initial_loss - final_loss_val) / initial_loss * 100) if initial_loss > 0 else 0
                 
-                # 找到收敛点 (loss 首次低于 0.1)
+                # Find convergence point (loss first drops below 0.1)
                 convergence_step = None
                 for i, loss in enumerate(losses):
                     if loss < 0.1:
@@ -905,7 +907,7 @@ class ReportGenerator:
                 md_lines.append("")
                 md_lines.append("| Metric | Value |")
                 md_lines.append("|--------|-------|")
-                # 使用科研风格标签：显示第一个有效更新步骤号
+                # Use scientific-style labels: show first effective update step number
                 md_lines.append(f"| Initial Loss (first effective update, Step {first_effective_step}) | {initial_loss:.4f} |")
                 md_lines.append(f"| Final Loss (Step {last_effective_step}) | {final_loss_val:.4f} |")
                 md_lines.append(f"| **Loss Reduction** | **{loss_reduction:.1f}%** |")
@@ -916,7 +918,7 @@ class ReportGenerator:
                     md_lines.append(f"| Convergence Step (<0.1 loss) | {convergence_step} |")
                 md_lines.append(f"| Total Training Steps | {len(deduplicated_metrics)} |")
                 md_lines.append("")
-                # 添加 Final Loss 定义说明
+                # Add Final Loss definition note
                 md_lines.append("> **Note:** Initial and final loss are from effective training steps (with non-zero learning rate). Pre-update warmup steps are excluded.")
                 md_lines.append("")
                 
@@ -933,7 +935,7 @@ class ReportGenerator:
                     md_lines.append(f"| Min Learning Rate | {min_lr:.2e} |")
                     md_lines.append(f"| Schedule Type | {scheduler_type} |")
                     md_lines.append("")
-                    # 添加 cosine scheduler 短步数说明
+                    # Add note for cosine scheduler with few steps
                     if scheduler_type.lower() == 'cosine' and len(deduplicated_metrics) <= 20:
                         md_lines.append("> **Note:** Due to the small number of training steps, the cosine schedule appears approximately linear.")
                         md_lines.append("")
@@ -944,7 +946,7 @@ class ReportGenerator:
                 md_lines.append("| Step | Loss | Learning Rate |")
                 md_lines.append("|------|------|--------------|")
                 
-                # 使用统一采样函数获取索引（从过滤后的 metrics）
+                # Use unified sampling function to get indices (from filtered metrics)
                 sample_indices = uniform_sample_indices(len(deduplicated_metrics), losses, max_samples=30)
                 
                 for idx in sample_indices:
@@ -970,7 +972,7 @@ class ReportGenerator:
 
                 md_lines.append("")
         
-        # 原始配置
+        # Raw configuration
         md_lines.append("## Raw Configuration")
         md_lines.append("")
         md_lines.append("<details>")
@@ -983,7 +985,7 @@ class ReportGenerator:
         md_lines.append("</details>")
         md_lines.append("")
         
-        # 页脚
+        # Footer
         md_lines.append("---")
         md_lines.append("")
         md_lines.append(f"*Report generated by LLMTrainPipeline | {datetime.now().isoformat()}*")
@@ -991,7 +993,7 @@ class ReportGenerator:
         return "\n".join(md_lines)
     
     def generate_loss_curve_svg(self, width: int = 800, height: int = 250) -> str:
-        """生成训练曲线 SVG"""
+        """Generate training curve SVG"""
         if not self.metrics:
             return '<p style="color: #707080; text-align: center; padding: 40px;">No training data available</p>'
         
@@ -999,7 +1001,7 @@ class ReportGenerator:
         chart_width = width - padding["left"] - padding["right"]
         chart_height = height - padding["top"] - padding["bottom"]
         
-        # 提取数据
+        # Extract data
         steps = [m.get("step", i) for i, m in enumerate(self.metrics)]
         losses = [m.get("loss", 0) for m in self.metrics]
         
@@ -1021,7 +1023,7 @@ class ReportGenerator:
         def scale_y(loss):
             return padding["top"] + chart_height - ((loss - min_loss) / (max_loss - min_loss)) * chart_height
         
-        # 生成路径
+        # Generate path
         path_points = []
         for i, (step, loss) in enumerate(zip(steps, losses)):
             x, y = scale_x(step), scale_y(loss)
@@ -1029,7 +1031,7 @@ class ReportGenerator:
             path_points.append(f"{cmd} {x:.1f} {y:.1f}")
         path_data = " ".join(path_points)
         
-        # Y 轴刻度
+        # Y-axis ticks
         y_ticks = []
         for t in [0, 0.25, 0.5, 0.75, 1.0]:
             val = min_loss + t * (max_loss - min_loss)
@@ -1037,7 +1039,7 @@ class ReportGenerator:
             y_ticks.append(f'<line x1="{padding["left"]}" y1="{y:.1f}" x2="{width - padding["right"]}" y2="{y:.1f}" stroke="#3a3a5a" stroke-dasharray="4"/>')
             y_ticks.append(f'<text x="{padding["left"] - 10}" y="{y + 4:.1f}" text-anchor="end" fill="#a0a0b0" font-size="12">{val:.3f}</text>')
         
-        # X 轴刻度
+        # X-axis ticks
         x_ticks = []
         for t in [0, 0.25, 0.5, 0.75, 1.0]:
             val = min_step + t * (max_step - min_step)
@@ -1079,11 +1081,11 @@ class ReportGenerator:
         return svg
     
     def generate_loss_table_html(self, metrics: List[Dict[str, Any]]) -> str:
-        """生成详细的 Loss 数据表格 HTML"""
+        """Generate detailed Loss data table HTML"""
         if not metrics:
             return ''
         
-        # 统计信息
+        # Statistics
         total_points = len(metrics)
         losses = [m.get("loss", 0) for m in metrics if m.get("loss") is not None]
         
@@ -1092,17 +1094,17 @@ class ReportGenerator:
         avg_loss = sum(losses) / len(losses) if losses else None
         
         # =====================================================================
-        # 计算 Per-Epoch 统计信息
-        # P0-FIX: HuggingFace Trainer 的 epoch 是小数形式（如 0.1, 0.2...），需要取整后分组
+        # Calculate Per-Epoch statistics
+        # P0-FIX: HuggingFace Trainer epoch is in decimal form (e.g., 0.1, 0.2...), need to round up for grouping
         # =====================================================================
         epochs_data = {}
         for m in metrics:
             raw_epoch = m.get("epoch")
-            # 如果没有 epoch 字段，默认为 1
+            # If no epoch field, default to 1
             if raw_epoch is None:
                 epoch = 1
             else:
-                # 取整：0.1->1, 0.9->1, 1.0->1, 1.1->2（ceiling 逻辑）
+                # Round up: 0.1->1, 0.9->1, 1.0->1, 1.1->2 (ceiling logic)
                 epoch = max(1, math.ceil(raw_epoch) if raw_epoch % 1 > 0 else int(raw_epoch) if raw_epoch > 0 else 1)
             if epoch not in epochs_data:
                 epochs_data[epoch] = {"losses": [], "eval_loss": None, "lr_values": []}
@@ -1114,7 +1116,7 @@ class ReportGenerator:
             if lr is not None:
                 epochs_data[epoch]["lr_values"].append(lr)
         
-        # 生成 Per-Epoch 表格行
+        # Generate Per-Epoch table rows
         epoch_rows = []
         for ep in sorted(epochs_data.keys()):
             ep_losses = epochs_data[ep]["losses"]
@@ -1136,7 +1138,7 @@ class ReportGenerator:
                 </tr>
             ''')
         
-        # Per-Epoch HTML 部分（当有多个 epoch 或用户可能关心时显示）
+        # Per-Epoch HTML section (display when there are multiple epochs or user may care)
         per_epoch_html = ""
         if len(epochs_data) >= 1:
             per_epoch_html = f'''
@@ -1158,17 +1160,17 @@ class ReportGenerator:
             </table>
             '''
         
-        # 找到最低 loss 对应的 step
+        # Find step corresponding to minimum loss
         min_loss_step = None
         for m in metrics:
             if m.get("loss") == min_loss:
                 min_loss_step = m.get("step")
                 break
         
-        # 生成摘要表格（显示关键点：开始、结束、最低点 + 均匀采样）
+        # Generate summary table (showing key points: start, end, lowest + uniform sampling)
         summary_rows = []
         
-        # 使用统一采样函数获取索引
+        # Use unified sampling function to get indices
         sample_indices = uniform_sample_indices(len(metrics), losses, max_samples=30)
         
         for idx in sample_indices:
@@ -1191,7 +1193,7 @@ class ReportGenerator:
                 </tr>
             ''')
         
-        # 生成完整数据的可展开表格
+        # Generate expandable table for full data
         all_rows = []
         for m in metrics:
             step = m.get("step", 0)
@@ -1214,7 +1216,7 @@ class ReportGenerator:
         <div class="section">
             <h2><span class="icon">📊</span> Training Metrics Log</h2>
             
-            <!-- 统计摘要 -->
+            <!-- Statistics Summary -->
             <div class="metrics-summary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
                 <div class="summary-item" style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; text-align: center;">
                     <div style="color: var(--text-secondary); font-size: 12px;">Total Steps</div>
@@ -1234,10 +1236,10 @@ class ReportGenerator:
                 </div>
             </div>
             
-            <!-- Per-Epoch 统计表格 -->
+            <!-- Per-Epoch Statistics Table -->
             {per_epoch_html}
             
-            <!-- 摘要表格 -->
+            <!-- Summary Table -->
             <h3>Key Data Points</h3>
             <table>
                 <thead>
@@ -1254,7 +1256,7 @@ class ReportGenerator:
                 </tbody>
             </table>
             
-            <!-- 完整数据（可展开） -->
+            <!-- Full Data (Expandable) -->
             <details class="raw-data" style="margin-top: 20px;">
                 <summary>📋 View All {total_points} Data Points</summary>
                 <div style="max-height: 400px; overflow-y: auto;">
@@ -1278,35 +1280,35 @@ class ReportGenerator:
         '''
     
     def generate_html(self, title: Optional[str] = None) -> str:
-        """生成极其详细丰富完整的 HTML 报告"""
+        """Generate extremely detailed and comprehensive HTML report"""
         
         # =====================================================================
-        # P0: 数据预处理 - 去重 metrics
+        # P0: Data preprocessing - deduplicate metrics
         # =====================================================================
         deduplicated_metrics = deduplicate_metrics(self.metrics)
         
-        # 提取各部分数据
+        # Extract data from each section
         training_config = self.config.get("training", {})
         lora_config = self.config.get("lora", {})
         model_config = self.config.get("model", {})
         dataset_config = self.config.get("dataset", {})
         
         # =====================================================================
-        # P0-1: 自动修正 dataset 统计 - total_samples 不能小于 train_samples
+        # P0-1: Auto-fix dataset stats - total_samples cannot be less than train_samples
         # =====================================================================
         total_samples = dataset_config.get("samples", 0) or 0
         train_samples = dataset_config.get("train_samples", 0) or 0
         if total_samples < train_samples:
-            # 自动修正：使用 train_samples 作为 total
+            # Auto-fix: use train_samples as total
             dataset_config["samples"] = train_samples
         elif total_samples == 0 and train_samples > 0:
             dataset_config["samples"] = train_samples
         
-        # 系统信息（优先使用记录的，否则收集当前）
-        # 注意：空字典 {} 也视为无数据，需要收集当前系统信息
+        # System info (prefer recorded, otherwise collect current)
+        # Note: empty dict {} is also treated as no data, need to collect current system info
         system_info = self.experiment_meta if self.experiment_meta else self.collect_system_info()
         
-        # 运行信息
+        # Run information
         run_name = title or self.run_info.get("name", self.config.get("run_name", "Training Run"))
         run_id = self.run_info.get("id", "N/A")
         start_time = self.run_info.get("start_time", self.config.get("start_time", ""))
@@ -1316,32 +1318,32 @@ class ReportGenerator:
         git_commit = self.run_info.get("git_commit", "N/A")
         
         # =====================================================================
-        # P0: 训练步数统计 - 区分三种不同概念的 steps（与 Markdown 报告保持一致）
+        # P0: Training steps statistics - distinguish three different concepts (consistent with Markdown report)
         # =====================================================================
-        # 1. Planned steps: 配置中计划的步数
+        # 1. Planned steps: steps planned in configuration
         planned_steps = training_config.get("total_steps") or training_config.get("planned_steps")
         
-        # 2. Raw logged steps: 原始日志中记录的总步数（包含 warmup/pre-log）
-        # 优先使用从 Node.js 传入的值
+        # 2. Raw logged steps: total steps recorded in raw logs (including warmup/pre-log)
+        # Prioritize value passed from Node.js
         raw_logged_steps_from_config = training_config.get("raw_logged_steps")
         raw_logged_steps = raw_logged_steps_from_config if raw_logged_steps_from_config else (len(self.metrics) if self.metrics else 0)
         
-        # 3. Effective update steps: 真正发生参数更新的步数
-        # 使用 Python 端过滤后的 deduplicated_metrics 的实际长度（最准确）
+        # 3. Effective update steps: steps where parameter updates actually occurred
+        # Use actual length of deduplicated_metrics filtered by Python (most accurate)
         effective_steps = len(deduplicated_metrics) if deduplicated_metrics else 0
         
-        # 用于显示的 total_steps（优先使用 effective_steps）
+        # total_steps for display (prefer effective_steps)
         total_steps = effective_steps if effective_steps > 0 else (planned_steps or "N/A")
         
-        # 计算 warmup 步骤数（原始日志 - 有效步骤）
+        # Calculate warmup steps (raw logged - effective steps)
         warmup_steps = raw_logged_steps - effective_steps if raw_logged_steps > effective_steps else 0
         
         # =====================================================================
-        # P1-2: Final Loss - 取最后一个有效的 train_step loss（非 summary）
+        # P1-2: Final Loss - get last valid train_step loss (non-summary)
         # =====================================================================
         final_loss = None
         if deduplicated_metrics:
-            # P0-FIX: 优先找有 lr 的最后一个 step（排除 epoch 平均 loss）
+            # P0-FIX: Prefer to find last step with lr (exclude epoch average loss)
             for m in reversed(deduplicated_metrics):
                 loss = m.get("loss")
                 lr = m.get("lr") or m.get("learning_rate")
@@ -1349,25 +1351,25 @@ class ReportGenerator:
                     final_loss = loss
                     break
             
-            # 如果没有找到有 lr 的 step，使用倒数第二个（避免使用可能的 epoch 平均值）
+            # If no step with lr found, use second to last (avoid using possible epoch average)
             if final_loss is None and len(deduplicated_metrics) >= 2:
                 final_loss = deduplicated_metrics[-2].get("loss")
             
-            # 最后兜底
+            # Last fallback
             if final_loss is None and deduplicated_metrics:
                 final_loss = deduplicated_metrics[-1].get("loss")
         
-        # 获取第一个和最后一个有效步骤的 step 号（用于显示）
+        # Get first and last effective step numbers (for display)
         first_effective_step = deduplicated_metrics[0].get("step", 1) if deduplicated_metrics else 1
         last_effective_step = deduplicated_metrics[-1].get("step", effective_steps) if deduplicated_metrics else effective_steps
         
-        # LoRA 统计
+        # LoRA statistics
         lora_stats = self.lora_stats or {}
         trainable_params = lora_stats.get("trainable_params")
         total_params = lora_stats.get("total_params")
         trainable_percent = lora_stats.get("trainable_percent")
         
-        # 评估结果
+        # Evaluation results
         eval_result = self.eval_result or {}
         pass_at_1 = eval_result.get("pass_at_1") or eval_result.get("passAt1")
         pass_at_5 = get_value(eval_result, "pass_at_k", "5") or get_value(eval_result, "passAtK", "5")
@@ -1378,30 +1380,30 @@ class ReportGenerator:
         time_stats = eval_result.get("time_stats", eval_result.get("timeStats", {}))
         
         # =====================================================================
-        # P0: 数据验证
+        # P0: Data validation
         # =====================================================================
         validator = DataValidator()
         
-        # 验证 dataset 统计
+        # Validate dataset stats
         validator.validate_dataset_stats(dataset_config)
         
-        # 验证步数
+        # Validate steps
         validator.validate_steps(planned_steps, effective_steps, len(deduplicated_metrics))
         
-        # 验证学习率
+        # Validate learning rate
         config_lr = training_config.get("lr") or training_config.get("learning_rate")
         lr_values = extract_lr_values(deduplicated_metrics)
         initial_lr = lr_values[0] if lr_values else None
         validator.validate_learning_rate(str(config_lr) if config_lr else None, initial_lr)
         
-        # 验证 scheduler
+        # Validate scheduler
         scheduler_config = training_config.get("scheduler", "cosine")
         detected_scheduler = validator.validate_scheduler(scheduler_config, lr_values)
         
-        # 收集所有警告
+        # Collect all warnings
         validation_warnings = validator.get_all_warnings()
         
-        # 格式化函数
+        # Formatting function
         def fmt(val, suffix="", decimals=2):
             if val is None:
                 return "N/A"
@@ -1413,19 +1415,19 @@ class ReportGenerator:
         def fmt_na(val):
             return str(val) if val is not None else '<span class="muted">Not collected</span>'
         
-        # 生成训练曲线 - 使用去重后的 metrics
-        # 临时替换 self.metrics 以生成曲线
+        # Generate training curve - use deduplicated metrics
+        # Temporarily replace self.metrics to generate curve
         original_metrics = self.metrics
         self.metrics = deduplicated_metrics
         loss_curve_svg = self.generate_loss_curve_svg()
         self.metrics = original_metrics
         
         # =====================================================================
-        # 生成详细的 Loss 数据表格
+        # Generate detailed Loss data table
         # =====================================================================
         loss_table_html = self.generate_loss_table_html(deduplicated_metrics)
         
-        # 生成检查点列表
+        # Generate checkpoint list
         checkpoints_html = ""
         if self.checkpoints:
             items = []
@@ -1450,7 +1452,7 @@ class ReportGenerator:
             '''
         
         # =====================================================================
-        # P0: 生成警告横幅 HTML
+        # P0: Generate warning banner HTML
         # =====================================================================
         warnings_html = ""
         if validation_warnings:
@@ -1463,12 +1465,12 @@ class ReportGenerator:
 '''
         
         # =====================================================================
-        # P0: 评测状态显示
+        # P0: Evaluation status display
         # =====================================================================
         eval_not_run = not self.eval_result or (pass_at_1 is None and compile_rate is None)
         eval_status_msg = ""
         if eval_not_run:
-            eval_status_msg = '<div class="eval-not-run">📋 Evaluation Not Run - 未运行代码评测，Pass@k 和 Compile Rate 等指标无数据</div>'
+            eval_status_msg = '<div class="eval-not-run">📋 Evaluation Not Run - Code evaluation was not performed, no data for Pass@k and Compile Rate metrics</div>'
         
         html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -2101,9 +2103,9 @@ class ReportGenerator:
         for i, case in enumerate(cases_to_show):
             task_id = case.get("taskId", case.get("task_id", f"Case {i+1}"))
             error_type = case.get("errorType", case.get("error_type", case.get("verdict", "Unknown")))
-            error_msg = case.get("error", case.get("traceback", ""))  # 完整显示
-            prompt = case.get("prompt", "")  # 完整显示
-            code = case.get("output", case.get("raw_output", case.get("post_process_output", "")))  # 完整显示
+            error_msg = case.get("error", case.get("traceback", ""))  # Show full content
+            prompt = case.get("prompt", "")  # Show full content
+            code = case.get("output", case.get("raw_output", case.get("post_process_output", "")))  # Show full content
             exec_time = case.get("executionTimeMs", case.get("execution_time_ms", 0))
             
             # Determine error badge color
@@ -2144,36 +2146,36 @@ class ReportGenerator:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="生成极其详细丰富完整的训练报告",
+        description="Generate extremely detailed and comprehensive training report",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例:
-  # 从运行目录生成报告
+Examples:
+  # Generate report from run directory
   python3 report_generator.py --run-dir ./runs/my-run --output report.html
   
-  # 从单独的文件生成报告
+  # Generate report from individual files
   python3 report_generator.py --config config.json --metrics metrics.json --output report.html
   
-  # 指定标题
+  # Specify title
   python3 report_generator.py --run-dir ./runs/my-run --title "CodeLlama LoRA Fine-tuning" --output report.html
         """
     )
     
-    parser.add_argument("--run-dir", "-d", help="训练运行目录路径")
-    parser.add_argument("--config", "-c", help="配置文件路径 (config.json)")
-    parser.add_argument("--metrics", "-m", help="训练指标文件路径 (metrics.json)")
-    parser.add_argument("--eval", "-e", help="评估结果文件路径 (eval_result.json)")
-    parser.add_argument("--meta", help="实验元数据文件路径 (experiment_meta.json)")
-    parser.add_argument("--output", "-o", required=True, help="输出文件路径")
-    parser.add_argument("--title", "-t", help="报告标题")
+    parser.add_argument("--run-dir", "-d", help="Training run directory path")
+    parser.add_argument("--config", "-c", help="Config file path (config.json)")
+    parser.add_argument("--metrics", "-m", help="Training metrics file path (metrics.json)")
+    parser.add_argument("--eval", "-e", help="Evaluation results file path (eval_result.json)")
+    parser.add_argument("--meta", help="Experiment metadata file path (experiment_meta.json)")
+    parser.add_argument("--output", "-o", required=True, help="Output file path")
+    parser.add_argument("--title", "-t", help="Report title")
     parser.add_argument("--format", "-f", choices=["html", "markdown", "md"], default="html",
-                        help="输出格式: html 或 markdown (默认: html)")
+                        help="Output format: html or markdown (default: html)")
     
     args = parser.parse_args()
     
     generator = ReportGenerator()
     
-    # 加载数据
+    # Load data
     if args.run_dir:
         print(f"Loading data from directory: {args.run_dir}")
         generator.load_from_directory(args.run_dir)
@@ -2186,7 +2188,7 @@ def main():
             meta_path=args.meta
         )
     
-    # 生成报告
+    # Generate report
     output_format = args.format.lower()
     if output_format in ["markdown", "md"]:
         print("Generating Markdown report...")
@@ -2195,7 +2197,7 @@ def main():
         print("Generating HTML report...")
         content = generator.generate_html(title=args.title)
     
-    # 保存报告
+    # Save report
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     

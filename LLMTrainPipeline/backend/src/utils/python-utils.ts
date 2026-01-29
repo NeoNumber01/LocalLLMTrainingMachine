@@ -1,13 +1,13 @@
 /**
- * Python 命令跨平台兼容工具
- * Windows 上通常是 python，Linux/Mac 上通常是 python3
+ * Python command cross-platform compatibility utility
+ * On Windows it's usually 'python', on Linux/Mac it's usually 'python3'
  */
 
 import { spawnSync } from 'child_process';
 
 /**
- * 获取可用的 Python 命令（跨平台兼容）
- * @returns 可用的 Python 命令 ('python' 或 'python3')
+ * Get available Python command (cross-platform compatible)
+ * @returns Available Python command ('python' or 'python3')
  */
 function getPythonCommand(): string {
     const candidates = process.platform === 'win32'
@@ -27,12 +27,12 @@ function getPythonCommand(): string {
     return 'python'; // fallback
 }
 
-// 缓存探测结果，避免重复检测
+// Cache detection result to avoid repeated checks
 let cachedPythonCmd: string | null = null;
 
 /**
- * 获取 Python 命令（带缓存）
- * @returns 可用的 Python 命令
+ * Get Python command (with cache)
+ * @returns Available Python command
  */
 export function getPython(): string {
     if (!cachedPythonCmd) {
@@ -42,7 +42,7 @@ export function getPython(): string {
 }
 
 /**
- * 重置 Python 命令缓存（用于测试或环境变更时）
+ * Reset Python command cache (for testing or environment changes)
  */
 export function resetPythonCache(): void {
     cachedPythonCmd = null;

@@ -26,7 +26,7 @@ export class LoraTrainer implements TrainerProvider {
     async *train(trainConfig: TrainConfig): AsyncGenerator<TrainEvent> {
         const startTime = Date.now();
 
-        // 初始化日志
+        // Initialize logging
         yield {
             type: 'log',
             timestamp: new Date(),
@@ -45,10 +45,10 @@ export class LoraTrainer implements TrainerProvider {
             },
         };
 
-        // 创建训练配置文件
+        // Create training config file
         const trainingConfigPath = path.join(trainConfig.outputDir, 'train_config.json');
 
-        // 使用 trainConfig.config 中的用户设置
+        // Use user settings from trainConfig.config
         const userTrainingConfig = trainConfig.config.training;
         const userLoraConfig = trainConfig.config.lora;
 
@@ -58,9 +58,9 @@ export class LoraTrainer implements TrainerProvider {
             datasetPath: trainConfig.datasetPath,
             evalDatasetPath: trainConfig.evalDatasetPath,
             outputDir: trainConfig.outputDir,
-            seed: userTrainingConfig.seed ?? 42,  // 新增: 随机种子
+            seed: userTrainingConfig.seed ?? 42,  // New: random seed
             training: {
-                // 基础训练参数
+                // Basic training parameters
                 epochs: userTrainingConfig.epochs,
                 batchSize: userTrainingConfig.batchSize,
                 lr: userTrainingConfig.lr,
@@ -72,21 +72,21 @@ export class LoraTrainer implements TrainerProvider {
                 weightDecay: userTrainingConfig.weightDecay,
                 precision: userTrainingConfig.precision,
 
-                // 核心训练参数 (新增)
+                // Core training parameters (new)
                 loggingSteps: userTrainingConfig.loggingSteps ?? 10,
                 saveSteps: userTrainingConfig.saveSteps ?? 100,
                 saveTotalLimit: userTrainingConfig.saveTotalLimit ?? 3,
                 gradientClipping: userTrainingConfig.gradientClipping ?? 1.0,
 
-                // Warmup 配置 (新增)
+                // Warmup configuration (new)
                 warmupType: userTrainingConfig.warmupType ?? 'ratio',
                 warmupSteps: userTrainingConfig.warmupSteps ?? 0,
 
-                // 验证配置 (新增)
+                // Validation configuration (new)
                 evalStrategy: userTrainingConfig.evalStrategy ?? 'epoch',
                 evalSteps: userTrainingConfig.evalSteps ?? 200,
 
-                // 高级训练选项 (新增)
+                // Advanced training options (new)
                 earlyStoppingEnabled: userTrainingConfig.earlyStoppingEnabled ?? false,
                 earlyStoppingPatience: userTrainingConfig.earlyStoppingPatience ?? 3,
                 earlyStoppingThreshold: userTrainingConfig.earlyStoppingThreshold ?? 0.0,
@@ -96,15 +96,15 @@ export class LoraTrainer implements TrainerProvider {
             lora: {
                 rank: userLoraConfig.rank,
                 alpha: userLoraConfig.alpha,
-                dropout: userLoraConfig.dropout ?? 0.05,  // 新增: LoRA dropout
-                bias: userLoraConfig.bias ?? 'none',      // 新增: LoRA bias
+                dropout: userLoraConfig.dropout ?? 0.05,  // New: LoRA dropout
+                bias: userLoraConfig.bias ?? 'none',      // New: LoRA bias
                 quantization: userLoraConfig.quantization,
                 targetModules: userLoraConfig.targetModules,
                 enabled: userLoraConfig.enabled,
             },
         };
 
-        // 确保输出目录存在
+        // Ensure output directory exists
         if (!fs.existsSync(trainConfig.outputDir)) {
             fs.mkdirSync(trainConfig.outputDir, { recursive: true });
         }
@@ -120,7 +120,7 @@ export class LoraTrainer implements TrainerProvider {
             },
         };
 
-        // 检查训练脚本是否存在
+        // Check if training script exists
         if (!fs.existsSync(TRAIN_SCRIPT)) {
             yield {
                 type: 'error',
@@ -132,7 +132,7 @@ export class LoraTrainer implements TrainerProvider {
             return;
         }
 
-        // 启动 Python 训练进程
+        // Start Python training process
         yield {
             type: 'log',
             timestamp: new Date(),
@@ -143,7 +143,7 @@ export class LoraTrainer implements TrainerProvider {
         };
 
         try {
-            // 使用 AsyncGenerator 来处理进程输出
+            // Use AsyncGenerator to handle process output
             const events = this.spawnTrainingProcess(trainingConfigPath, startTime);
 
             for await (const event of events) {
@@ -162,13 +162,13 @@ export class LoraTrainer implements TrainerProvider {
     }
 
     private async *spawnTrainingProcess(configPath: string, startTime: number): AsyncGenerator<TrainEvent> {
-        // 使用事件队列实现实时流式传输
+        // Use event queue for real-time streaming
         const eventQueue: TrainEvent[] = [];
         let resolveNext: (() => void) | null = null;
         let processComplete = false;
         let processError: Error | null = null;
 
-        // P0-FIX: 跟踪已发送的 step，防止重复发送
+        // P0-FIX: Track sent steps to prevent duplicate sending
         const processedSteps = new Set<number>();
 
         const pythonCmd = getPython();
@@ -188,7 +188,7 @@ export class LoraTrainer implements TrainerProvider {
             }
         };
 
-        // 解析标准输出
+        // Parse standard output
         stdout.on('line', (line) => {
             const trimmedLine = line.trim();
             if (!trimmedLine) return;
@@ -196,17 +196,17 @@ export class LoraTrainer implements TrainerProvider {
             // Debug log for raw output
             console.log(`[LoraTrainer RAW] ${trimmedLine}`);
 
-            // 首先尝试解析 JSON 格式的事件 (来自 TrainingEventCallback)
+            // First try to parse JSON format events (from TrainingEventCallback)
             if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
                 try {
                     const jsonEvent = JSON.parse(trimmedLine);
 
-                    // 处理 metric 事件
+                    // Handle metric event
                     if (jsonEvent.type === 'metric' && jsonEvent.data) {
                         currentStep = jsonEvent.data.step || currentStep + 1;
-                        // P0-FIX: 检查是否已处理过该 step
+                        // P0-FIX: Check if this step has already been processed
                         if (processedSteps.has(currentStep)) {
-                            return; // 跳过重复的 step
+                            return; // Skip duplicate step
                         }
                         processedSteps.add(currentStep);
                         // console.log(`[LoraTrainer] Parsed metric event: step=${currentStep}, loss=${jsonEvent.data.loss}`);
@@ -224,7 +224,7 @@ export class LoraTrainer implements TrainerProvider {
                         return;
                     }
 
-                    // 处理 checkpoint 事件
+                    // Handle checkpoint event
                     if (jsonEvent.type === 'checkpoint' && jsonEvent.data) {
                         console.log(`[LoraTrainer] Parsed checkpoint event: ${jsonEvent.data.path}`);
                         pushEvent({
@@ -238,7 +238,7 @@ export class LoraTrainer implements TrainerProvider {
                         return;
                     }
 
-                    // 处理 experiment_log 事件
+                    // Handle experiment_log event
                     if (jsonEvent.type === 'experiment_log' && jsonEvent.data) {
                         console.log(`[LoraTrainer] Parsed experiment_log event`);
                         pushEvent({
@@ -249,7 +249,7 @@ export class LoraTrainer implements TrainerProvider {
                         return;
                     }
 
-                    // 处理 data_quality 事件 (P2: 数据质量统计)
+                    // Handle data_quality event (P2: Data quality statistics)
                     if (jsonEvent.type === 'data_quality' && jsonEvent.data) {
                         console.log(`[LoraTrainer] Parsed data_quality event`);
                         pushEvent({
@@ -260,7 +260,7 @@ export class LoraTrainer implements TrainerProvider {
                         return;
                     }
 
-                    // 处理 training_summary 事件
+                    // Handle training_summary event
                     if (jsonEvent.type === 'training_summary' && jsonEvent.data) {
                         console.log(`[LoraTrainer] Parsed training_summary event`);
                         pushEvent({
@@ -271,7 +271,7 @@ export class LoraTrainer implements TrainerProvider {
                         return;
                     }
                 } catch (e) {
-                    // 不是有效JSON，继续使用正则表达式解析
+                    // Not valid JSON, continue with regex parsing
                     // console.warn(`[LoraTrainer] Failed to parse JSON line: ${trimmedLine}`, e);
                 }
             } else if (line.includes('"type":')) {
@@ -283,10 +283,10 @@ export class LoraTrainer implements TrainerProvider {
                 } catch (e) { }
             }
 
-            // 后备：尝试解析训练指标 (HuggingFace Trainer 格式)
-            // 格式: {'loss': 3.5068, 'grad_norm': 6.55, 'learning_rate': 9.4e-05, 'epoch': 1.6}
-            // P0-FIX: 仅匹配 'loss'，不匹配 'train_loss'（epoch 平均值）
-            // train_loss 是训练结束时的平均 loss，会导致异常跳跃
+            // Fallback: try to parse training metrics (HuggingFace Trainer format)
+            // Format: {'loss': 3.5068, 'grad_norm': 6.55, 'learning_rate': 9.4e-05, 'epoch': 1.6}
+            // P0-FIX: Only match 'loss', not 'train_loss' (epoch average)
+            // train_loss is average loss at training end, causes abnormal jumps
             const lossMatch = line.match(/'loss':\s*([\d.]+)/);
             const lrMatch = line.match(/'learning_rate':\s*([\d.e+-]+)/);
             const epochMatch = line.match(/'epoch':\s*([\d.]+)/);
@@ -294,9 +294,9 @@ export class LoraTrainer implements TrainerProvider {
 
             if (lossMatch && epochMatch) {
                 currentStep++;
-                // P0-FIX: 检查是否已处理过该 step（防止 JSON 和 regex 双重解析）
+                // P0-FIX: Check if this step has been processed (prevent JSON and regex double parsing)
                 if (processedSteps.has(currentStep)) {
-                    return; // 跳过重复的 step
+                    return; // Skip duplicate step
                 }
                 processedSteps.add(currentStep);
                 // console.log(`[LoraTrainer] Regex parsed stride: step=${currentStep}, loss=${lossMatch[1]}`);
@@ -323,11 +323,11 @@ export class LoraTrainer implements TrainerProvider {
             }
         });
 
-        // 解析标准错误（包含进度和日志）
+        // Parse standard error (contains progress and logs)
         stderr.on('line', (line) => {
             if (!line.trim()) return;
 
-            // 检查进度条 (tqdm 格式)
+            // Check progress bar (tqdm format)
             const progressMatch = line.match(/(\d+)%\|/);
             if (progressMatch) {
                 pushEvent({
@@ -341,7 +341,7 @@ export class LoraTrainer implements TrainerProvider {
                 return;
             }
 
-            // 检查常见日志格式
+            // Check common log format
             const logMatch = line.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.*?) - (.*?) - (INFO|WARNING|ERROR|DEBUG) - (.*)/);
             if (logMatch) {
                 const level = logMatch[3].toLowerCase() as 'info' | 'warning' | 'error';
@@ -356,7 +356,7 @@ export class LoraTrainer implements TrainerProvider {
                 return;
             }
 
-            // 错误和警告检测
+            // Error and warning detection
             const lowerLine = line.toLowerCase();
             if (lowerLine.includes('error') || lowerLine.includes('exception') || lowerLine.includes('traceback')) {
                 pushEvent({
@@ -435,12 +435,12 @@ export class LoraTrainer implements TrainerProvider {
             if (resolveNext) resolveNext();
         });
 
-        // 异步迭代器：持续 yield 事件直到进程完成
+        // Async iterator: keep yielding events until process completes
         while (!processComplete || eventQueue.length > 0) {
             if (eventQueue.length > 0) {
                 yield eventQueue.shift()!;
             } else if (!processComplete) {
-                // 等待新事件
+                // Wait for new events
                 await new Promise<void>((resolve) => {
                     resolveNext = resolve;
                 });

@@ -5,37 +5,37 @@ import os from 'os';
 
 export async function filesRoutes(fastify: FastifyInstance) {
 
-    // GET /api/files/browse - 浏览文件夹内容
+    // GET /api/files/browse - Browse folder contents
     fastify.get<{
         Querystring: { path?: string; filter?: string }
     }>('/browse', {
         schema: {
             tags: ['Files'],
-            summary: '浏览本地文件夹',
+            summary: 'Browse local folder',
             querystring: {
                 type: 'object',
                 properties: {
-                    path: { type: 'string', description: '要浏览的路径' },
-                    filter: { type: 'string', description: '文件过滤器，如 .jsonl,.json' },
+                    path: { type: 'string', description: 'Path to browse' },
+                    filter: { type: 'string', description: 'File filter, e.g. .jsonl,.json' },
                 },
             },
         },
     }, async (request, reply) => {
-        // 默认从用户目录开始
+        // Default to start from user directory
         let targetPath = request.query.path || os.homedir();
         const filter = request.query.filter?.split(',').map(f => f.trim().toLowerCase()) || [];
 
-        // 处理特殊路径
+        // Handle special paths
         if (targetPath === '~') {
             targetPath = os.homedir();
         }
 
-        // 安全检查：确保路径存在
+        // Security check: ensure path exists
         if (!fs.existsSync(targetPath)) {
             return reply.status(404).send({ error: `Path not found: ${targetPath}` });
         }
 
-        // 确保是目录
+        // Ensure it's a directory
         const stats = fs.statSync(targetPath);
         if (!stats.isDirectory()) {
             return reply.status(400).send({ error: 'Path is not a directory' });
@@ -46,13 +46,13 @@ export async function filesRoutes(fastify: FastifyInstance) {
 
             const items = entries
                 .filter(entry => {
-                    // 过滤隐藏文件
+                    // Filter hidden files
                     if (entry.name.startsWith('.')) return false;
 
-                    // 如果是目录，始终显示
+                    // If directory, always show
                     if (entry.isDirectory()) return true;
 
-                    // 如果有过滤器，只显示匹配的文件
+                    // If filter exists, only show matching files
                     if (filter.length > 0) {
                         const ext = path.extname(entry.name).toLowerCase();
                         return filter.includes(ext);
@@ -78,14 +78,14 @@ export async function filesRoutes(fastify: FastifyInstance) {
                         ext: entry.isFile() ? path.extname(entry.name) : null,
                     };
                 })
-                // 目录排前面
+                // Directories sort first
                 .sort((a, b) => {
                     if (a.isDirectory && !b.isDirectory) return -1;
                     if (!a.isDirectory && b.isDirectory) return 1;
                     return a.name.localeCompare(b.name);
                 });
 
-            // 获取父目录
+            // Get parent directory
             const parentPath = path.dirname(targetPath);
             const hasParent = parentPath !== targetPath;
 
@@ -99,18 +99,18 @@ export async function filesRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // GET /api/files/drives - 获取可用驱动器（Windows）
+    // GET /api/files/drives - Get available drives (Windows)
     fastify.get('/drives', {
         schema: {
             tags: ['Files'],
-            summary: '获取可用驱动器列表',
+            summary: 'Get available drives list',
         },
     }, async (request, reply) => {
         if (process.platform !== 'win32') {
             return { drives: ['/'] };
         }
 
-        // Windows: 扫描可用驱动器
+        // Windows: scan available drives
         const drives: string[] = [];
         for (let i = 65; i <= 90; i++) {
             const drive = String.fromCharCode(i) + ':\\';
@@ -122,11 +122,11 @@ export async function filesRoutes(fastify: FastifyInstance) {
         return { drives };
     });
 
-    // GET /api/files/quickPaths - 获取快速访问路径
+    // GET /api/files/quickPaths - Get quick access paths
     fastify.get('/quickPaths', {
         schema: {
             tags: ['Files'],
-            summary: '获取快速访问路径',
+            summary: 'Get quick access paths',
         },
     }, async (request, reply) => {
         const home = os.homedir();
@@ -144,13 +144,13 @@ export async function filesRoutes(fastify: FastifyInstance) {
         return { paths };
     });
 
-    // POST /api/files/openNativeDialog - 打开系统原生文件选择对话框
+    // POST /api/files/openNativeDialog - Open system native file selection dialog
     fastify.post<{
         Body: { mode: 'file' | 'folder'; filter?: string; title?: string }
     }>('/openNativeDialog', {
         schema: {
             tags: ['Files'],
-            summary: '打开系统原生文件选择对话框',
+            summary: 'Open system native file selection dialog',
             body: {
                 type: 'object',
                 properties: {
@@ -220,7 +220,7 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                     resolve({ selected: false, path: null, error: 'Failed to open dialog' });
                 });
             } else if (process.platform === 'darwin') {
-                // Mac: 使用 osascript (AppleScript) 打开原生对话框
+                // Mac: use osascript (AppleScript) to open native dialog
                 let script: string;
                 if (mode === 'folder') {
                     script = `POSIX path of (choose folder with prompt "${safeTitle || 'Select Folder'}")`;
@@ -255,7 +255,7 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                     resolve({ selected: false, path: null, error: 'Failed to open dialog' });
                 });
             } else {
-                // Linux: 尝试使用 zenity (GTK) 或返回不支持
+                // Linux: try to use zenity (GTK) or return not supported
                 const zenityCmd = mode === 'folder'
                     ? ['--file-selection', '--directory', `--title=${safeTitle || 'Select Folder'}`]
                     : ['--file-selection', `--title=${safeTitle || 'Select File'}`];
@@ -280,7 +280,7 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                     }
                 });
                 zenity.on('error', () => {
-                    // zenity 不可用，返回不支持
+                    // zenity not available, return not supported
                     resolve({ selected: false, path: null, error: 'Native dialog requires zenity on Linux. Please use the file browser instead.' });
                 });
             }

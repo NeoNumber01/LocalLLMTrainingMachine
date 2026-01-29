@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Dataset Format Registry - 可扩展的数据集格式检测与转换系统
+Dataset Format Registry - Extensible dataset format detection and conversion system
 
-支持 20+ 种常见 LLM 训练数据格式，自动检测并转换为标准 messages 格式。
+Supports 20+ common LLM training data formats, automatically detects and converts to standard messages format.
 
 Usage:
     from format_registry import DatasetFormatRegistry
     registry = DatasetFormatRegistry()
     
-    # 自动检测并转换
+    # Auto-detect and convert
     format_name = registry.detect_format(sample)
     messages = registry.convert_to_messages(sample, format_name)
 """
@@ -22,13 +22,13 @@ logger = logging.getLogger("FormatRegistry")
 
 
 # =============================================================================
-# 数据结构定义
+# Data structure definitions
 # =============================================================================
 @dataclass
 class FormatInfo:
-    """格式信息"""
+    """Format information"""
     name: str
-    priority: int  # 检测优先级 (越小越优先)
+    priority: int  # Detection priority (smaller = higher priority)
     description: str
     required_fields: list[str]
     optional_fields: list[str]
@@ -37,24 +37,24 @@ class FormatInfo:
 
 
 # =============================================================================
-# 格式转换器基类
+# Format converter base class
 # =============================================================================
 class BaseFormatConverter(ABC):
-    """格式转换器基类"""
+    """Format converter base class"""
     
     @abstractmethod
     def detect(self, sample: dict) -> bool:
-        """检测样本是否匹配此格式"""
+        """Detect if sample matches this format"""
         pass
     
     @abstractmethod
     def convert(self, sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-        """将样本转换为标准 messages 格式"""
+        """Convert sample to standard messages format"""
         pass
 
 
 # =============================================================================
-# 默认 System Prompt
+# Default System Prompt
 # =============================================================================
 DEFAULT_SYSTEM_PROMPTS = {
     "code": "You are an expert Python programmer. Write clean, efficient, and correct code.",
@@ -66,17 +66,17 @@ DEFAULT_SYSTEM_PROMPTS = {
 
 
 def get_system_prompt(category: str = "general", custom: Optional[str] = None) -> str:
-    """获取 system prompt"""
+    """Get system prompt"""
     if custom:
         return custom
     return DEFAULT_SYSTEM_PROMPTS.get(category, DEFAULT_SYSTEM_PROMPTS["general"])
 
 
 # =============================================================================
-# 辅助函数
+# Helper functions
 # =============================================================================
 def safe_str(value: Any) -> str:
-    """安全地将值转换为字符串"""
+    """Safely convert value to string"""
     if value is None:
         return ""
     if isinstance(value, str):
@@ -88,17 +88,17 @@ def safe_str(value: Any) -> str:
 
 
 def has_fields(sample: dict, required: list[str]) -> bool:
-    """检查样本是否包含所有必需字段"""
+    """Check if sample contains all required fields"""
     return all(field in sample and sample[field] is not None for field in required)
 
 
 def has_any_field(sample: dict, fields: list[str]) -> bool:
-    """检查样本是否包含任意一个字段"""
+    """Check if sample contains any of the specified fields"""
     return any(field in sample and sample[field] is not None for field in fields)
 
 
 def get_first_field(sample: dict, fields: list[str], default: str = "") -> str:
-    """获取第一个存在的字段值"""
+    """Get the first existing field value"""
     for field in fields:
         if field in sample and sample[field] is not None:
             return safe_str(sample[field])
@@ -106,42 +106,42 @@ def get_first_field(sample: dict, fields: list[str], default: str = "") -> str:
 
 
 # =============================================================================
-# P0 格式：对话类
+# P0 formats: Conversation types
 # =============================================================================
 
 def detect_messages(sample: dict) -> bool:
-    """检测标准 messages 格式"""
+    """Detect standard messages format"""
     if "messages" not in sample:
         return False
     messages = sample["messages"]
     if not isinstance(messages, list) or len(messages) == 0:
         return False
-    # 检查是否是有效的 messages 格式
+    # Check if it's a valid messages format
     return all(isinstance(m, dict) and "role" in m and "content" in m for m in messages)
 
 
 def convert_messages(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换标准 messages 格式"""
+    """Convert standard messages format"""
     return sample["messages"]
 
 
 def detect_sharegpt(sample: dict) -> bool:
-    """检测 ShareGPT 格式 (conversations 数组)"""
+    """Detect ShareGPT format (conversations array)"""
     if "conversations" not in sample:
         return False
     convs = sample["conversations"]
     if not isinstance(convs, list) or len(convs) == 0:
         return False
-    # ShareGPT 使用 "from" 和 "value" 字段
+    # ShareGPT uses "from" and "value" fields
     return all(isinstance(c, dict) and ("from" in c or "role" in c) and ("value" in c or "content" in c) for c in convs)
 
 
 def convert_sharegpt(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 ShareGPT 格式"""
+    """Convert ShareGPT format"""
     messages = []
     convs = sample["conversations"]
     
-    # ShareGPT 角色映射
+    # ShareGPT role mapping
     role_map = {
         "human": "user",
         "user": "user",
@@ -163,13 +163,13 @@ def convert_sharegpt(sample: dict, system_prompt: Optional[str] = None) -> list[
 
 
 def detect_openai_chatml(sample: dict) -> bool:
-    """检测 OpenAI ChatML 格式 (独立的 system/user/assistant 字段)"""
-    # 必须有 user 和 assistant，system 可选
+    """Detect OpenAI ChatML format (separate system/user/assistant fields)"""
+    # Must have user and assistant, system is optional
     return has_fields(sample, ["user", "assistant"])
 
 
 def convert_openai_chatml(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 OpenAI ChatML 格式"""
+    """Convert OpenAI ChatML format"""
     messages = []
     
     # System prompt
@@ -188,23 +188,23 @@ def convert_openai_chatml(sample: dict, system_prompt: Optional[str] = None) -> 
 
 
 def detect_dialog_turns(sample: dict) -> bool:
-    """检测多轮对话格式 (dialog/turns 数组)"""
+    """Detect multi-turn dialog format (dialog/turns array)"""
     for field in ["dialog", "turns", "dialogue", "conversation"]:
         if field in sample and isinstance(sample[field], list) and len(sample[field]) > 0:
             turns = sample[field]
-            # 检查是否是交替的用户/助手对话
+            # Check if it's alternating user/assistant dialog
             if isinstance(turns[0], str):
-                return True  # 纯字符串数组，交替 user/assistant
+                return True  # Pure string array, alternating user/assistant
             if isinstance(turns[0], dict):
-                return True  # 结构化对话
+                return True  # Structured dialog
     return False
 
 
 def convert_dialog_turns(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换多轮对话格式"""
+    """Convert multi-turn dialog format"""
     messages = []
     
-    # 找到对话字段
+    # Find dialog field
     turns = None
     for field in ["dialog", "turns", "dialogue", "conversation"]:
         if field in sample and isinstance(sample[field], list):
@@ -214,18 +214,18 @@ def convert_dialog_turns(sample: dict, system_prompt: Optional[str] = None) -> l
     if not turns:
         return messages
     
-    # 添加 system prompt
+    # Add system prompt
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     
-    # 处理对话
+    # Process dialog
     if isinstance(turns[0], str):
-        # 纯字符串数组：交替 user/assistant
+        # Pure string array: alternating user/assistant
         for i, turn in enumerate(turns):
             role = "user" if i % 2 == 0 else "assistant"
             messages.append({"role": role, "content": safe_str(turn)})
     else:
-        # 结构化对话
+        # Structured dialog
         for turn in turns:
             role = turn.get("role") or turn.get("speaker") or ("user" if len(messages) % 2 == 0 else "assistant")
             content = turn.get("content") or turn.get("text") or turn.get("utterance") or ""
@@ -239,18 +239,18 @@ def convert_dialog_turns(sample: dict, system_prompt: Optional[str] = None) -> l
 
 
 def detect_history_response(sample: dict) -> bool:
-    """检测历史+回复格式 (history + response)"""
+    """Detect history + response format"""
     return has_fields(sample, ["history", "response"]) or has_fields(sample, ["history", "reply"])
 
 
 def convert_history_response(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换历史+回复格式"""
+    """Convert history + response format"""
     messages = []
     
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     
-    # 处理 history
+    # Process history
     history = sample.get("history", [])
     if isinstance(history, list):
         for i, item in enumerate(history):
@@ -258,7 +258,7 @@ def convert_history_response(sample: dict, system_prompt: Optional[str] = None) 
                 role = "user" if i % 2 == 0 else "assistant"
                 messages.append({"role": role, "content": safe_str(item)})
             elif isinstance(item, (list, tuple)) and len(item) >= 2:
-                # [user_msg, assistant_msg] 格式
+                # [user_msg, assistant_msg] format
                 messages.append({"role": "user", "content": safe_str(item[0])})
                 messages.append({"role": "assistant", "content": safe_str(item[1])})
             elif isinstance(item, dict):
@@ -266,12 +266,12 @@ def convert_history_response(sample: dict, system_prompt: Optional[str] = None) 
                 content = item.get("content") or item.get("text", "")
                 messages.append({"role": role, "content": safe_str(content)})
     
-    # 添加当前查询 (如果存在)
+    # Add current query (if exists)
     if "query" in sample or "input" in sample:
         query = sample.get("query") or sample.get("input", "")
         messages.append({"role": "user", "content": safe_str(query)})
     
-    # 添加回复
+    # Add response
     response = sample.get("response") or sample.get("reply", "")
     messages.append({"role": "assistant", "content": safe_str(response)})
     
@@ -279,34 +279,34 @@ def convert_history_response(sample: dict, system_prompt: Optional[str] = None) 
 
 
 # =============================================================================
-# P0 格式：指令类
+# P0 formats: Instruction types
 # =============================================================================
 
 def detect_alpaca(sample: dict) -> bool:
-    """检测 Alpaca 格式 (instruction + input + output)"""
-    # Alpaca 必须有 instruction 和 output，input 可以为空字符串
-    # 扩展支持 reference 字段（常见于代码训练数据）
+    """Detect Alpaca format (instruction + input + output)"""
+    # Alpaca must have instruction and output, input can be empty string
+    # Extended support for reference field (common in code training data)
     return has_fields(sample, ["instruction"]) and has_any_field(sample, ["output", "response", "reference"])
 
 
 def convert_alpaca(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 Alpaca 格式"""
+    """Convert Alpaca format"""
     messages = []
     
-    # System prompt - 自动检测是否是代码训练场景
+    # System prompt - auto-detect if it's a code training scenario
     is_code_sample = "signature" in sample or "reference" in sample or "tests" in sample
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     elif is_code_sample:
-        # 代码训练场景使用代码专用的 system prompt
+        # Code training scenario uses code-specific system prompt
         messages.append({"role": "system", "content": get_system_prompt("code")})
     
-    # 构建 user 消息
+    # Build user message
     instruction = safe_str(sample.get("instruction", ""))
     input_text = safe_str(sample.get("input", ""))
     signature = safe_str(sample.get("signature", ""))
     
-    # 代码场景：如果有 signature，添加到指令中
+    # Code scenario: if has signature, add to instruction
     if signature:
         if input_text:
             user_content = f"{instruction}\n\nFunction signature:\n{signature}\n\nInput:\n{input_text}"
@@ -319,7 +319,7 @@ def convert_alpaca(sample: dict, system_prompt: Optional[str] = None) -> list[di
     
     messages.append({"role": "user", "content": user_content})
     
-    # Assistant 响应
+    # Assistant response
     output = get_first_field(sample, ["output", "response", "answer", "reference"])
     messages.append({"role": "assistant", "content": output})
     
@@ -327,18 +327,18 @@ def convert_alpaca(sample: dict, system_prompt: Optional[str] = None) -> list[di
 
 
 def detect_dolly(sample: dict) -> bool:
-    """检测 Dolly 格式 (context + instruction + response)"""
+    """Detect Dolly format (context + instruction + response)"""
     return has_fields(sample, ["context", "instruction", "response"])
 
 
 def convert_dolly(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 Dolly 格式"""
+    """Convert Dolly format"""
     messages = []
     
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     
-    # 构建 user 消息
+    # Build user message
     instruction = safe_str(sample.get("instruction", ""))
     context = safe_str(sample.get("context", ""))
     
@@ -354,30 +354,30 @@ def convert_dolly(sample: dict, system_prompt: Optional[str] = None) -> list[dic
 
 
 def detect_wizardlm(sample: dict) -> bool:
-    """检测 WizardLM 格式 (instruction + response + complexity)"""
-    # WizardLM 特征：有 complexity 或 evol_* 字段
+    """Detect WizardLM format (instruction + response + complexity)"""
+    # WizardLM characteristic: has complexity or evol_* fields
     if not has_fields(sample, ["instruction"]):
         return False
     return "complexity" in sample or any(k.startswith("evol_") for k in sample.keys())
 
 
 def convert_wizardlm(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 WizardLM 格式"""
-    # 基本上和 Alpaca 一样处理
+    """Convert WizardLM format"""
+    # Basically handled same as Alpaca
     return convert_alpaca(sample, system_prompt)
 
 
 # =============================================================================
-# P0 格式：代码生成类
+# P0 formats: Code generation types
 # =============================================================================
 
 def detect_humaneval(sample: dict) -> bool:
-    """检测 HumanEval 格式"""
+    """Detect HumanEval format"""
     return has_fields(sample, ["task_id", "prompt"]) and has_any_field(sample, ["canonical_solution", "solution"])
 
 
 def convert_humaneval(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 HumanEval 格式"""
+    """Convert HumanEval format"""
     messages = []
     
     messages.append({"role": "system", "content": system_prompt or get_system_prompt("code")})
@@ -390,21 +390,21 @@ def convert_humaneval(sample: dict, system_prompt: Optional[str] = None) -> list
 
 
 def detect_mbpp(sample: dict) -> bool:
-    """检测 MBPP 格式 (task_id + text + code)"""
+    """Detect MBPP format (task_id + text + code)"""
     return has_fields(sample, ["text", "code"]) or (has_fields(sample, ["task_id"]) and has_any_field(sample, ["text", "prompt"]))
 
 
 def convert_mbpp(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 MBPP 格式"""
+    """Convert MBPP format"""
     messages = []
     
     messages.append({"role": "system", "content": system_prompt or get_system_prompt("code")})
     
-    # 用户消息
+    # User message
     prompt = get_first_field(sample, ["text", "prompt", "description"])
     messages.append({"role": "user", "content": prompt})
     
-    # 代码
+    # Code
     code = get_first_field(sample, ["code", "solution", "canonical_solution"])
     messages.append({"role": "assistant", "content": code})
     
@@ -412,19 +412,19 @@ def convert_mbpp(sample: dict, system_prompt: Optional[str] = None) -> list[dict
 
 
 def detect_taco(sample: dict) -> bool:
-    """检测 TACO/CodeContests 格式 (prompt + reference/solution + starter_code)"""
+    """Detect TACO/CodeContests format (prompt + reference/solution + starter_code)"""
     if not has_fields(sample, ["prompt"]):
         return False
     return has_any_field(sample, ["reference", "solution", "solutions", "code"]) or "starter_code" in sample
 
 
 def convert_taco(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 TACO/CodeContests 格式"""
+    """Convert TACO/CodeContests format"""
     messages = []
     
     messages.append({"role": "system", "content": system_prompt or get_system_prompt("code")})
     
-    # 构建用户消息
+    # Build user message
     prompt = safe_str(sample.get("prompt", ""))
     starter_code = safe_str(sample.get("starter_code", ""))
     
@@ -435,10 +435,10 @@ def convert_taco(sample: dict, system_prompt: Optional[str] = None) -> list[dict
     
     messages.append({"role": "user", "content": user_content})
     
-    # 代码解决方案
+    # Code solution
     solution = get_first_field(sample, ["reference", "solution", "code", "canonical_solution"])
     
-    # 如果 solutions 是数组，取第一个
+    # If solutions is an array, take the first one
     if not solution and "solutions" in sample:
         solutions = sample["solutions"]
         if isinstance(solutions, list) and len(solutions) > 0:
@@ -450,12 +450,12 @@ def convert_taco(sample: dict, system_prompt: Optional[str] = None) -> list[dict
 
 
 def detect_code_completion(sample: dict) -> bool:
-    """检测代码补全格式 (prefix + suffix + middle)"""
+    """Detect code completion format (prefix + suffix + middle)"""
     return has_fields(sample, ["prefix", "middle"]) or has_fields(sample, ["prefix", "suffix", "middle"])
 
 
 def convert_code_completion(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换代码补全格式 (FIM - Fill in the Middle)"""
+    """Convert code completion format (FIM - Fill in the Middle)"""
     messages = []
     
     messages.append({"role": "system", "content": system_prompt or get_system_prompt("code")})
@@ -476,12 +476,12 @@ def convert_code_completion(sample: dict, system_prompt: Optional[str] = None) -
 
 
 def detect_code_instruct(sample: dict) -> bool:
-    """检测代码指令格式 (prompt + code)"""
+    """Detect code instruction format (prompt + code)"""
     return has_fields(sample, ["prompt", "code"])
 
 
 def convert_code_instruct(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换代码指令格式"""
+    """Convert code instruction format"""
     messages = []
     
     messages.append({"role": "system", "content": system_prompt or get_system_prompt("code")})
@@ -492,16 +492,16 @@ def convert_code_instruct(sample: dict, system_prompt: Optional[str] = None) -> 
 
 
 # =============================================================================
-# P1 格式：问答类
+# P1 formats: QA types
 # =============================================================================
 
 def detect_qa_basic(sample: dict) -> bool:
-    """检测基础问答格式"""
+    """Detect basic QA format"""
     return has_fields(sample, ["question"]) and has_any_field(sample, ["answer", "answers", "response"])
 
 
 def convert_qa_basic(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换基础问答格式"""
+    """Convert basic QA format"""
     messages = []
     
     if system_prompt:
@@ -509,10 +509,10 @@ def convert_qa_basic(sample: dict, system_prompt: Optional[str] = None) -> list[
     
     messages.append({"role": "user", "content": safe_str(sample.get("question", ""))})
     
-    # 答案可能是字符串或列表
+    # Answer can be string or list
     answer = sample.get("answer") or sample.get("response") or ""
     if "answers" in sample and isinstance(sample["answers"], list):
-        # 取第一个答案
+        # Take the first answer
         answer = sample["answers"][0] if sample["answers"] else ""
         if isinstance(answer, dict):
             answer = answer.get("text", "")
@@ -523,12 +523,12 @@ def convert_qa_basic(sample: dict, system_prompt: Optional[str] = None) -> list[
 
 
 def detect_qa_with_context(sample: dict) -> bool:
-    """检测带上下文的问答格式 (RAG 格式)"""
+    """Detect QA with context format (RAG format)"""
     return has_fields(sample, ["question"]) and has_any_field(sample, ["context", "passage", "document"]) and has_any_field(sample, ["answer", "response"])
 
 
 def convert_qa_with_context(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换带上下文的问答格式"""
+    """Convert QA with context format"""
     messages = []
     
     if system_prompt:
@@ -547,12 +547,12 @@ def convert_qa_with_context(sample: dict, system_prompt: Optional[str] = None) -
 
 
 def detect_qa_choices(sample: dict) -> bool:
-    """检测多选题格式"""
+    """Detect multiple choice format"""
     return has_fields(sample, ["question", "choices"]) or has_fields(sample, ["question", "options"])
 
 
 def convert_qa_choices(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换多选题格式"""
+    """Convert multiple choice format"""
     messages = []
     
     if system_prompt:
@@ -561,7 +561,7 @@ def convert_qa_choices(sample: dict, system_prompt: Optional[str] = None) -> lis
     question = safe_str(sample.get("question", ""))
     choices = sample.get("choices") or sample.get("options", [])
     
-    # 构建选项文本
+    # Build choice text
     choice_texts = []
     for i, choice in enumerate(choices):
         label = chr(65 + i)  # A, B, C, D...
@@ -574,26 +574,26 @@ def convert_qa_choices(sample: dict, system_prompt: Optional[str] = None) -> lis
     user_content = f"{question}\n\n" + "\n".join(choice_texts)
     messages.append({"role": "user", "content": user_content})
     
-    # 答案
+    # Answer
     answer = sample.get("answer", "")
     if isinstance(answer, int) and 0 <= answer < len(choices):
-        answer = chr(65 + answer)  # 转换为字母
+        answer = chr(65 + answer)  # Convert to letter
     messages.append({"role": "assistant", "content": safe_str(answer)})
     
     return messages
 
 
 # =============================================================================
-# P1 格式：生成类
+# P1 formats: Generation types
 # =============================================================================
 
 def detect_summarization(sample: dict) -> bool:
-    """检测摘要格式"""
+    """Detect summarization format"""
     return has_any_field(sample, ["document", "article", "text"]) and has_any_field(sample, ["summary", "highlights", "abstract"])
 
 
 def convert_summarization(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换摘要格式"""
+    """Convert summarization format"""
     messages = []
     
     sys_prompt = system_prompt or "You are an expert summarizer. Provide concise and accurate summaries."
@@ -609,26 +609,26 @@ def convert_summarization(sample: dict, system_prompt: Optional[str] = None) -> 
 
 
 def detect_translation(sample: dict) -> bool:
-    """检测翻译格式"""
-    # 检查 source/target 或语言对 (如 en, zh, de 等)
+    """Detect translation format"""
+    # Check source/target or language pairs (e.g., en, zh, de, etc.)
     if has_fields(sample, ["source", "target"]):
         return True
-    # 检查语言代码字段
+    # Check language code fields
     lang_codes = ["en", "zh", "de", "fr", "es", "ja", "ko", "ru", "ar", "pt", "it"]
     return sum(1 for lang in lang_codes if lang in sample) >= 2
 
 
 def convert_translation(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换翻译格式"""
+    """Convert translation format"""
     messages = []
     
     messages.append({"role": "system", "content": system_prompt or get_system_prompt("translation")})
     
-    # 尝试获取源语言和目标语言
+    # Try to get source and target languages
     source = sample.get("source", "")
     target = sample.get("target", "")
     
-    # 如果没有 source/target，尝试语言代码字段
+    # If no source/target, try language code fields
     if not source:
         for lang in ["en", "zh", "de", "fr", "es", "ja", "ko"]:
             if lang in sample and sample[lang]:
@@ -645,12 +645,12 @@ def convert_translation(sample: dict, system_prompt: Optional[str] = None) -> li
 
 
 def detect_rewriting(sample: dict) -> bool:
-    """检测改写格式"""
+    """Detect rewriting format"""
     return has_fields(sample, ["original", "rewritten"]) or has_fields(sample, ["input", "paraphrase"])
 
 
 def convert_rewriting(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换改写格式"""
+    """Convert rewriting format"""
     messages = []
     
     sys_prompt = system_prompt or "You are an expert at paraphrasing text while preserving meaning."
@@ -666,16 +666,16 @@ def convert_rewriting(sample: dict, system_prompt: Optional[str] = None) -> list
 
 
 # =============================================================================
-# P2 格式：特殊类
+# P2 formats: Special types
 # =============================================================================
 
 def detect_chain_of_thought(sample: dict) -> bool:
-    """检测思维链格式"""
+    """Detect chain of thought format"""
     return has_fields(sample, ["question"]) and has_any_field(sample, ["chain_of_thought", "cot", "reasoning", "thought"])
 
 
 def convert_chain_of_thought(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换思维链格式"""
+    """Convert chain of thought format"""
     messages = []
     
     sys_prompt = system_prompt or "You are an expert problem solver. Think step by step and show your reasoning."
@@ -684,7 +684,7 @@ def convert_chain_of_thought(sample: dict, system_prompt: Optional[str] = None) 
     question = safe_str(sample.get("question", ""))
     messages.append({"role": "user", "content": question})
     
-    # 构建思维链 + 答案
+    # Build chain of thought + answer
     cot = get_first_field(sample, ["chain_of_thought", "cot", "reasoning", "thought"])
     answer = get_first_field(sample, ["answer", "final_answer", "result"])
     
@@ -701,18 +701,18 @@ def convert_chain_of_thought(sample: dict, system_prompt: Optional[str] = None) 
 
 
 def detect_sql_generation(sample: dict) -> bool:
-    """检测 SQL 生成格式"""
+    """Detect SQL generation format"""
     return has_fields(sample, ["question"]) and has_any_field(sample, ["query", "sql"]) and has_any_field(sample, ["schema", "table", "db_id"])
 
 
 def convert_sql_generation(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换 SQL 生成格式"""
+    """Convert SQL generation format"""
     messages = []
     
     sys_prompt = system_prompt or "You are an expert SQL developer. Write correct and efficient SQL queries."
     messages.append({"role": "system", "content": sys_prompt})
     
-    # 构建用户消息
+    # Build user message
     question = safe_str(sample.get("question", ""))
     schema = get_first_field(sample, ["schema", "table_info", "create_table"])
     db_id = sample.get("db_id", "")
@@ -733,13 +733,13 @@ def convert_sql_generation(sample: dict, system_prompt: Optional[str] = None) ->
 
 
 def detect_math_solving(sample: dict) -> bool:
-    """检测数学求解格式"""
+    """Detect math solving format"""
     return has_any_field(sample, ["problem", "question"]) and has_any_field(sample, ["solution", "answer"]) and \
            ("answer" in sample or any(k in sample for k in ["final_answer", "numeric_answer"]))
 
 
 def convert_math_solving(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换数学求解格式"""
+    """Convert math solving format"""
     messages = []
     
     messages.append({"role": "system", "content": system_prompt or get_system_prompt("math")})
@@ -747,7 +747,7 @@ def convert_math_solving(sample: dict, system_prompt: Optional[str] = None) -> l
     problem = get_first_field(sample, ["problem", "question"])
     messages.append({"role": "user", "content": problem})
     
-    # 构建解答
+    # Build solution
     solution = get_first_field(sample, ["solution", "explanation", "reasoning"])
     answer = get_first_field(sample, ["answer", "final_answer", "numeric_answer"])
     
@@ -764,12 +764,12 @@ def convert_math_solving(sample: dict, system_prompt: Optional[str] = None) -> l
 
 
 def detect_code_review(sample: dict) -> bool:
-    """检测代码评审格式"""
+    """Detect code review format"""
     return has_fields(sample, ["code_before"]) and has_any_field(sample, ["review", "code_after", "feedback"])
 
 
 def convert_code_review(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换代码评审格式"""
+    """Convert code review format"""
     messages = []
     
     sys_prompt = system_prompt or "You are a senior code reviewer. Provide constructive feedback and improvements."
@@ -778,7 +778,7 @@ def convert_code_review(sample: dict, system_prompt: Optional[str] = None) -> li
     code_before = safe_str(sample.get("code_before", ""))
     messages.append({"role": "user", "content": f"Review and improve this code:\n\n```\n{code_before}\n```"})
     
-    # 构建响应
+    # Build response
     review = safe_str(sample.get("review") or sample.get("feedback", ""))
     code_after = safe_str(sample.get("code_after", ""))
     
@@ -795,12 +795,12 @@ def convert_code_review(sample: dict, system_prompt: Optional[str] = None) -> li
 
 
 def detect_text_only(sample: dict) -> bool:
-    """检测纯文本格式 (最低优先级)"""
+    """Detect plain text format (lowest priority)"""
     return "text" in sample or "content" in sample
 
 
 def convert_text_only(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换纯文本格式"""
+    """Convert plain text format"""
     text = get_first_field(sample, ["text", "content"])
     return [
         {"role": "user", "content": "Complete the following:"},
@@ -809,18 +809,18 @@ def convert_text_only(sample: dict, system_prompt: Optional[str] = None) -> list
 
 
 # =============================================================================
-# 格式注册表
+# Format Registry
 # =============================================================================
 
 class DatasetFormatRegistry:
     """
-    可扩展的数据集格式注册表
+    Extensible dataset format registry
     
-    特性:
-    - 自动格式检测
-    - 插件式解析器架构
-    - 优先级排序
-    - 详细日志记录
+    Features:
+    - Automatic format detection
+    - Plugin-based parser architecture
+    - Priority sorting
+    - Detailed logging
     """
     
     def __init__(self, default_system_prompt: Optional[str] = None):
@@ -829,9 +829,9 @@ class DatasetFormatRegistry:
         self._register_builtin_formats()
     
     def _register_builtin_formats(self):
-        """注册所有内置格式"""
+        """Register all built-in formats"""
         
-        # P0 - 对话类
+        # P0 - Conversation types
         self.register("messages", 10, "Standard OpenAI messages format",
                      ["messages"], [], detect_messages, convert_messages)
         
@@ -847,7 +847,7 @@ class DatasetFormatRegistry:
         self.register("history_response", 14, "History + response format",
                      ["history"], ["response", "reply", "query"], detect_history_response, convert_history_response)
         
-        # P0 - 指令类
+        # P0 - Instruction types
         self.register("alpaca", 20, "Alpaca format (instruction+input+output)",
                      ["instruction"], ["input", "output", "response"], detect_alpaca, convert_alpaca)
         
@@ -857,7 +857,7 @@ class DatasetFormatRegistry:
         self.register("wizardlm", 22, "WizardLM format (with complexity)",
                      ["instruction"], ["complexity"], detect_wizardlm, convert_wizardlm)
         
-        # P0 - 代码生成
+        # P0 - Code generation
         self.register("humaneval", 30, "HumanEval format",
                      ["task_id", "prompt"], ["canonical_solution", "solution"], detect_humaneval, convert_humaneval)
         
@@ -873,7 +873,7 @@ class DatasetFormatRegistry:
         self.register("code_instruct", 34, "Code instruction format (prompt+code)",
                      ["prompt", "code"], [], detect_code_instruct, convert_code_instruct)
         
-        # P1 - 问答类
+        # P1 - QA types
         self.register("qa_with_context", 40, "QA with context (RAG)",
                      ["question"], ["context", "passage", "document", "answer"], detect_qa_with_context, convert_qa_with_context)
         
@@ -883,7 +883,7 @@ class DatasetFormatRegistry:
         self.register("qa_basic", 42, "Basic QA format",
                      ["question"], ["answer", "answers"], detect_qa_basic, convert_qa_basic)
         
-        # P1 - 生成类
+        # P1 - Generation types
         self.register("summarization", 50, "Summarization format",
                      [], ["document", "article", "summary", "highlights"], detect_summarization, convert_summarization)
         
@@ -893,7 +893,7 @@ class DatasetFormatRegistry:
         self.register("rewriting", 52, "Rewriting/paraphrase format",
                      [], ["original", "rewritten", "paraphrase"], detect_rewriting, convert_rewriting)
         
-        # P2 - 特殊类
+        # P2 - Special types
         self.register("chain_of_thought", 60, "Chain of thought format",
                      ["question"], ["chain_of_thought", "cot", "reasoning"], detect_chain_of_thought, convert_chain_of_thought)
         
@@ -906,7 +906,7 @@ class DatasetFormatRegistry:
         self.register("code_review", 63, "Code review format",
                      ["code_before"], ["review", "code_after", "feedback"], detect_code_review, convert_code_review)
         
-        # 兜底 - 纯文本
+        # Fallback - Plain text
         self.register("text_only", 100, "Plain text format (fallback)",
                      [], ["text", "content"], detect_text_only, convert_text_only)
     
@@ -920,7 +920,7 @@ class DatasetFormatRegistry:
         detector: Callable[[dict], bool],
         converter: Callable[[dict, Optional[str]], list[dict]]
     ):
-        """注册新格式"""
+        """Register new format"""
         format_info = FormatInfo(
             name=name,
             priority=priority,
@@ -931,11 +931,11 @@ class DatasetFormatRegistry:
             converter=converter
         )
         self._formats.append(format_info)
-        # 按优先级排序
+        # Sort by priority
         self._formats.sort(key=lambda x: x.priority)
     
     def detect_format(self, sample: dict) -> str:
-        """自动检测样本格式"""
+        """Auto-detect sample format"""
         for fmt in self._formats:
             try:
                 if fmt.detector(sample):
@@ -951,9 +951,9 @@ class DatasetFormatRegistry:
         format_name: Optional[str] = None,
         system_prompt: Optional[str] = None
     ) -> list[dict]:
-        """将样本转换为标准 messages 格式"""
+        """Convert sample to standard messages format"""
         
-        # 自动检测格式
+        # Auto-detect format
         if format_name is None or format_name == "unknown":
             format_name = self.detect_format(sample)
         
@@ -961,7 +961,7 @@ class DatasetFormatRegistry:
             logger.warning(f"Unknown format for sample with keys: {list(sample.keys())}")
             return []
         
-        # 查找转换器
+        # Find converter
         for fmt in self._formats:
             if fmt.name == format_name:
                 try:
@@ -974,18 +974,18 @@ class DatasetFormatRegistry:
         return []
     
     def get_format_info(self, name: str) -> Optional[FormatInfo]:
-        """获取格式信息"""
+        """Get format information"""
         for fmt in self._formats:
             if fmt.name == name:
                 return fmt
         return None
     
     def list_formats(self) -> list[str]:
-        """列出所有支持的格式"""
+        """List all supported formats"""
         return [fmt.name for fmt in self._formats]
     
     def get_format_stats(self, samples: list[dict]) -> dict[str, int]:
-        """统计样本集中各格式的数量"""
+        """Count format occurrences in sample set"""
         stats: dict[str, int] = {}
         for sample in samples:
             fmt = self.detect_format(sample)
@@ -994,13 +994,13 @@ class DatasetFormatRegistry:
 
 
 # =============================================================================
-# 便捷函数
+# Convenience functions
 # =============================================================================
 
 _default_registry: Optional[DatasetFormatRegistry] = None
 
 def get_registry() -> DatasetFormatRegistry:
-    """获取默认注册表实例（单例）"""
+    """Get default registry instance (singleton)"""
     global _default_registry
     if _default_registry is None:
         _default_registry = DatasetFormatRegistry()
@@ -1008,21 +1008,21 @@ def get_registry() -> DatasetFormatRegistry:
 
 
 def detect_format(sample: dict) -> str:
-    """检测样本格式（便捷函数）"""
+    """Detect sample format (convenience function)"""
     return get_registry().detect_format(sample)
 
 
 def convert_sample(sample: dict, system_prompt: Optional[str] = None) -> list[dict]:
-    """转换样本为 messages 格式（便捷函数）"""
+    """Convert sample to messages format (convenience function)"""
     return get_registry().convert_to_messages(sample, system_prompt=system_prompt)
 
 
 # =============================================================================
-# 测试入口
+# Test entry point
 # =============================================================================
 
 if __name__ == "__main__":
-    # 快速测试
+    # Quick test
     registry = DatasetFormatRegistry()
     
     print("=" * 60)

@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-测试脚本：验证双风格代码支持
-测试函数式代码能否在 stdin/stdout 测试中正确执行
+Test Script: Verify dual-style code support
+Test whether function-style code can execute correctly in stdin/stdout tests
 """
 import sys
 import os
 
-# 添加 scripts 目录到 path
+# Add scripts directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 导入测试相关函数
+# Import test-related functions
 import re
 from io import StringIO
 
-# 从 eval.py 复制关键函数进行测试
+# Copy key functions from eval.py for testing
 def _generate_function_wrapper(code: str, fn_name: str, sample_input: str) -> str:
-    """生成函数调用包装器"""
+    """Generate function call wrapper"""
     input_lines = sample_input.strip().split('\n') if sample_input.strip() else []
     
     wrapper = f'''{code}
@@ -35,11 +35,11 @@ def _read_line():
         return result
     return ''
 
-# 尝试以多种方式调用函数
+# Try calling function in multiple ways
 _result = None
 _called = False
 
-# 策略1: 单个整数
+# Strategy 1: Single integer
 if not _called and len(_lines) == 1 and _lines[0].lstrip('-').isdigit():
     try:
         _arg = int(_lines[0])
@@ -48,7 +48,7 @@ if not _called and len(_lines) == 1 and _lines[0].lstrip('-').isdigit():
     except:
         pass
 
-# 策略2: 第一行是n，第二行是数组
+# Strategy 2: First line is n, second line is array
 if not _called and len(_lines) >= 2:
     try:
         _n = int(_lines[0])
@@ -65,7 +65,7 @@ if not _called and len(_lines) >= 2:
     except:
         pass
 
-# 策略3: 单行空格分隔的整数作为列表
+# Strategy 3: Single line space-separated integers as list
 if not _called and len(_lines) == 1:
     try:
         _arr = list(map(int, _lines[0].split()))
@@ -74,7 +74,7 @@ if not _called and len(_lines) == 1:
     except:
         pass
 
-# 输出结果
+# Output result
 if _result is not None:
     if isinstance(_result, list):
         if _result and isinstance(_result[0], list):
@@ -91,7 +91,7 @@ if _result is not None:
 
 
 def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
-    """智能适配代码风格"""
+    """Smart code style adaptation"""
     has_def = bool(re.search(r'\bdef\s+\w+\s*\(', code))
     has_input = bool(re.search(r'\binput\s*\(', code))
     has_print = bool(re.search(r'\bprint\s*\(', code))
@@ -117,21 +117,21 @@ def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
 
 
 def run_test(test_name, func_code, test_input, expected_output):
-    """运行单个测试"""
+    """Run single test"""
     print(f"\n{'='*60}")
-    print(f"测试: {test_name}")
+    print(f"Test: {test_name}")
     print(f"{'='*60}")
     
-    # 适配代码
+    # Adapt code
     adapted_code = _adapt_code_for_stdin_test(func_code, test_input)
     
-    # 检测是否进行了适配
+    # Check if adaptation was performed
     if adapted_code != func_code:
-        print("✓ 代码已适配为 stdin/stdout 风格")
+        print("✓ Code adapted to stdin/stdout style")
     else:
-        print("○ 代码无需适配")
+        print("○ Code does not need adaptation")
     
-    # 执行测试
+    # Execute test
     inp = test_input if test_input.endswith('\n') else test_input + '\n'
     
     old_stdin, old_stdout = sys.stdin, sys.stdout
@@ -146,31 +146,31 @@ def run_test(test_name, func_code, test_input, expected_output):
     actual_output = capture.getvalue().strip()
     expected_clean = expected_output.strip()
     
-    print(f"输入: {repr(test_input)}")
-    print(f"期望输出: {repr(expected_clean)}")
-    print(f"实际输出: {repr(actual_output)}")
+    print(f"Input: {repr(test_input)}")
+    print(f"Expected output: {repr(expected_clean)}")
+    print(f"Actual output: {repr(actual_output)}")
     
     if actual_output == expected_clean:
-        print("✅ 测试通过!")
+        print("✅ Test passed!")
         return True
     else:
-        print("❌ 测试失败!")
+        print("❌ Test failed!")
         return False
 
 
-# =============== 测试用例 ===============
+# =============== Test Cases ===============
 
 print("="*70)
-print("双风格代码支持测试")
+print("Dual-Style Code Support Test")
 print("="*70)
 
 passed = 0
 total = 0
 
-# 测试1: 函数式代码 + 单个整数输入
+# Test 1: Function-style code + single integer input
 total += 1
 result = run_test(
-    "函数式代码 + 单个整数输入",
+    "Function-style code + single integer input",
     func_code="""
 def solve(n):
     cn5 = n * (n - 1) // 2 * (n - 2) // 3 * (n - 3) // 4 * (n - 4) // 5
@@ -183,10 +183,10 @@ def solve(n):
 if result:
     passed += 1
 
-# 测试2: 函数式代码 + 数组输入  
+# Test 2: Function-style code + array input  
 total += 1
 result = run_test(
-    "函数式代码 + 数组输入",
+    "Function-style code + array input",
     func_code="""
 def solve(nums):
     return sum(nums)
@@ -197,10 +197,10 @@ def solve(nums):
 if result:
     passed += 1
 
-# 测试3: 脚本式代码（不应修改）
+# Test 3: Script-style code (should not modify)
 total += 1
 result = run_test(
-    "脚本式代码（不应修改）",
+    "Script-style code (should not modify)",
     func_code="""
 n = int(input())
 print(n * 2)
@@ -211,10 +211,10 @@ print(n * 2)
 if result:
     passed += 1
 
-# 测试4: 函数式代码 + n和数组输入
+# Test 4: Function-style code + n and array input
 total += 1
 result = run_test(
-    "函数式代码 + n和数组输入",
+    "Function-style code + n and array input",
     func_code="""
 def solve(n, arr):
     return sum(arr[:n])
@@ -225,12 +225,12 @@ def solve(n, arr):
 if result:
     passed += 1
 
-# 汇总
+# Summary
 print("\n" + "="*70)
-print(f"测试结果: {passed}/{total} 通过")
+print(f"Test Results: {passed}/{total} passed")
 print("="*70)
 
 if passed == total:
-    print("✅ 所有测试通过！双风格支持工作正常。")
+    print("✅ All tests passed! Dual-style support works correctly.")
 else:
-    print("⚠️ 部分测试失败，需要检查适配逻辑。")
+    print("⚠️ Some tests failed, need to check adaptation logic.")

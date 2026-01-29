@@ -9,7 +9,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
     fastify.get('/overview', {
         schema: {
             tags: ['Dashboard'],
-            summary: '获取仪表盘概览',
+            summary: 'Get dashboard overview',
             response: {
                 200: {
                     type: 'object',
@@ -33,9 +33,9 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
             },
         },
     }, async (request, reply) => {
-        // 并行获取所有数据
+        // Fetch all data in parallel
         const [runStats, systemInfo] = await Promise.all([
-            // 获取运行统计
+            // Get run statistics
             Promise.all([
                 prisma.run.count({ where: { status: 'running' } }),
                 prisma.run.count({ where: { status: 'queued' } }),
@@ -45,13 +45,13 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
                     include: { model: true, dataset: true },
                 }),
             ]),
-            // 获取系统监控信息 (使用 backend storage 路径检测磁盘)
+            // Get system monitoring info (using backend storage path for disk detection)
             getDashboardSystemInfo(process.cwd()),
         ]);
 
         const [activeRuns, queuedRuns, recentRuns] = runStats;
 
-        // 转换 runs 为前端格式
+        // Convert runs to frontend format
         const formattedRuns: RunResponse[] = recentRuns.map(run => {
             const metrics = run.metricsJson ? JSON.parse(run.metricsJson) : { loss: 0, passAt1: 0, compileRate: 0 };
             const config = JSON.parse(run.configJson);

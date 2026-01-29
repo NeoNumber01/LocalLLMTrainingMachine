@@ -6,11 +6,11 @@ import { prisma } from '../db/prisma-client.js';
 
 export async function modelsRoutes(fastify: FastifyInstance) {
 
-    // GET /api/models - 获取所有模型
+    // GET /api/models - Get all models
     fastify.get('/', {
         schema: {
             tags: ['Models'],
-            summary: '获取所有模型',
+            summary: 'Get all models',
         },
     }, async (request, reply) => {
         const models = await prisma.model.findMany({
@@ -32,11 +32,11 @@ export async function modelsRoutes(fastify: FastifyInstance) {
         return response;
     });
 
-    // GET /api/models/:id - 获取模型详情
+    // GET /api/models/:id - Get model details
     fastify.get<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Models'],
-            summary: '获取模型详情',
+            summary: 'Get model details',
         },
     }, async (request, reply) => {
         const model = await prisma.model.findUnique({
@@ -61,18 +61,18 @@ export async function modelsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // POST /api/models/rescan - 重新扫描模型目录
+    // POST /api/models/rescan - Rescan models directory
     fastify.post('/rescan', {
         schema: {
             tags: ['Models'],
-            summary: '重新扫描模型目录',
+            summary: 'Rescan models directory',
         },
     }, async (request, reply) => {
         const config = getConfig();
         const factory = getProviderFactory(config);
         const scanner = factory.getScanner();
 
-        // P2-FIX: 从 Settings 读取动态路径，fallback 到默认配置
+        // P2-FIX: Read dynamic path from Settings, fallback to default config
         let modelsDir = config.storage.modelsDir;
         try {
             const watchFoldersSetting = await prisma.setting.findUnique({
@@ -99,11 +99,11 @@ export async function modelsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // POST /api/models/import - 导入本地模型
+    // POST /api/models/import - Import local model
     fastify.post('/import', {
         schema: {
             tags: ['Models'],
-            summary: '导入本地模型',
+            summary: 'Import local model',
             body: {
                 type: 'object',
                 properties: {
@@ -117,29 +117,29 @@ export async function modelsRoutes(fastify: FastifyInstance) {
         const fs = await import('fs');
         const pathModule = await import('path');
 
-        // 验证路径存在
+        // Validate path exists
         if (!fs.existsSync(body.path)) {
             return reply.status(400).send({ error: `Path not found: ${body.path}` });
         }
 
-        // 提取模型名
+        // Extract model name
         const modelName = body.name || pathModule.basename(body.path);
 
-        // 检测量化类型
+        // Detect quantization type
         let quantization = 'None';
         if (modelName.toLowerCase().includes('gguf')) quantization = 'GGUF';
         else if (modelName.toLowerCase().includes('gptq') || modelName.toLowerCase().includes('4bit')) quantization = '4-bit';
         else if (modelName.toLowerCase().includes('awq')) quantization = 'AWQ';
         else if (modelName.toLowerCase().includes('8bit')) quantization = '8-bit';
 
-        // 检测参数量
+        // Detect parameter count
         let params = 'Unknown';
         const paramMatch = modelName.match(/(\d+(?:\.\d+)?)[Bb]/);
         if (paramMatch) {
             params = `${paramMatch[1]}B`;
         }
 
-        // 创建模型记录
+        // Create model record
         const model = await prisma.model.create({
             data: {
                 name: modelName,
@@ -155,11 +155,11 @@ export async function modelsRoutes(fastify: FastifyInstance) {
         return { id: model.id, name: model.name, status: 'imported' };
     });
 
-    // DELETE /api/models/:id - 删除模型记录（不删除本地文件）
+    // DELETE /api/models/:id - Delete model record (does not delete local files)
     fastify.delete<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Models'],
-            summary: '删除模型记录（不删除本地文件）',
+            summary: 'Delete model record (does not delete local files)',
         },
     }, async (request, reply) => {
         const model = await prisma.model.findUnique({

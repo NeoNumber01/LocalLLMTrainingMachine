@@ -216,7 +216,7 @@ def load_model(model_path: str, adapter_path: str = None, quantization: str = "4
     # Load adapter if provided
     if adapter_path and os.path.exists(adapter_path):
         logger.info(f"Loading adapter from: {adapter_path}")
-        # P0-FIX: 输出到 stdout 供前端显示
+        # P0-FIX: Output to stdout for frontend display
         print(json.dumps({
             "type": "log",
             "level": "info",
@@ -229,7 +229,7 @@ def load_model(model_path: str, adapter_path: str = None, quantization: str = "4
             "message": "LoRA adapter loaded successfully"
         }), flush=True)
     elif adapter_path:
-        # adapter_path 提供了但路径不存在
+        # adapter_path provided but path doesn't exist
         logger.warning(f"Adapter path provided but not found: {adapter_path}")
         print(json.dumps({
             "type": "log",
@@ -237,7 +237,7 @@ def load_model(model_path: str, adapter_path: str = None, quantization: str = "4
             "message": f"WARNING: Adapter path not found: {adapter_path}. Running without LoRA."
         }), flush=True)
     else:
-        # 没有提供 adapter，使用基座模型
+        # No adapter provided, use base model
         print(json.dumps({
             "type": "log",
             "level": "info",
@@ -373,54 +373,54 @@ def parse_json_test(test_str: str, solution_code: str, idx: int = 0) -> str:
     """
     test_str = test_str.strip()
     
-    # 1. 如果不是 JSON，检查是否是原始 Python 代码
+    # 1. If not JSON, check if it's raw Python code
     if not test_str.startswith('{'):
-        # 可能是直接的 assert 语句或测试代码
+        # May be direct assert statement or test code
         if 'assert' in test_str or 'def test_' in test_str:
             return test_str
         return test_str
     
-    # 2. 尝试解析 JSON
+    # 2. Try to parse JSON
     try:
         test = json.loads(test_str)
     except json.JSONDecodeError:
-        # JSON 解析失败，返回原样
+        # JSON parse failed, return as-is
         return test_str
     
-    # 3. 检测测试类型并转换
+    # 3. Detect test type and convert
     test_type = test.get('type', '').lower()
     
-    # 获取输入（支持多种字段名）
+    # Get input (supports multiple field names)
     inp = test.get('input', test.get('inputs', test.get('stdin', '')))
     
-    # 获取期望输出（支持多种字段名）
+    # Get expected output (supports multiple field names)
     exp = test.get('expected_output', 
            test.get('output',
            test.get('outputs',
            test.get('expected',
            test.get('stdout', '')))))
     
-    # 获取函数名（如果有）
+    # Get function name (if any)
     fn_name = test.get('fn_name', test.get('function_name', test.get('entry_point', '')))
     
-    # 4. 根据类型选择转换方式
+    # 4. Choose conversion method based on type
     if test_type == 'stdin_stdout' or (not fn_name and isinstance(inp, str)):
-        # stdin/stdout 类型
+        # stdin/stdout type
         return _convert_stdin_test_enhanced(inp, exp, solution_code, idx)
     elif test_type == 'function_call' or fn_name:
-        # 函数调用类型
+        # Function call type
         return _convert_func_test_enhanced(fn_name or 'solve', inp, exp, idx)
     elif isinstance(inp, list) and not fn_name:
-        # 可能是 MBPP/HumanEval 格式，带参数列表但无函数名
-        # 尝试作为 stdin/stdout 处理
+        # May be MBPP/HumanEval format with parameter list but no function name
+        # Try treating as stdin/stdout
         if all(isinstance(i, str) for i in inp):
             combined_input = '\n'.join(inp)
             return _convert_stdin_test_enhanced(combined_input, exp, solution_code, idx)
         else:
-            # 假设是函数参数
+            # Assume it's function parameters
             return _convert_func_test_enhanced('solve', inp, exp, idx)
     else:
-        # 尝试 stdin/stdout 作为后备
+        # Try stdin/stdout as fallback
         return _convert_stdin_test_enhanced(str(inp), str(exp), solution_code, idx)
 
 
@@ -428,20 +428,20 @@ def parse_json_test(test_str: str, solution_code: str, idx: int = 0) -> str:
 
 def _generate_function_wrapper(code: str, fn_name: str, sample_input: str) -> str:
     """
-    生成函数调用包装器，将函数式代码转换为stdin/stdout脚本
+        Generate function call wrapper to convert function-style code to stdin/stdout script
     
-    当模型生成函数式代码（如 def solve(...)），但测试期望 stdin/stdout 风格时，
-    自动生成包装代码来读取输入、调用函数并打印输出。
+    When model generates function-style code (e.g., def solve(...)), but test expects stdin/stdout style,
+    automatically generate wrapper code to read input, call function and print output.
     
     Args:
-        code: 函数式代码
-        fn_name: 检测到的函数名（可能是 "solve" 或 "Solution().method"）
-        sample_input: 测试输入样例，用于推断输入格式
+        code: Function-style code
+        fn_name: Detected function name (may be "solve" or "Solution().method")
+        sample_input: Test input sample, used to infer input format
     
     Returns:
-        包含原始代码 + 自动生成调用逻辑的完整脚本
+        Complete script containing original code + auto-generated call logic
     """
-    # 检测是否是 Solution 类方法
+    # Check if it's a Solution class method
     is_solution_class = fn_name.startswith("Solution().")
     if is_solution_class:
         method_name = fn_name.split(".")[-1]
@@ -449,7 +449,7 @@ def _generate_function_wrapper(code: str, fn_name: str, sample_input: str) -> st
     else:
         call_prefix = fn_name
     
-    # 生成更健壮的包装器
+    # Generate more robust wrapper
     wrapper = f'''{code}
 
 # ===== Auto-generated wrapper for function-style code =====
@@ -491,14 +491,14 @@ def _try_parse_list_int(s):
     except:
         return s.split() if s else []
 
-# 获取调用函数的引用
+# Get reference to the function to call
 _fn = {call_prefix}
 
-# 尝试以多种方式调用函数
+# Try calling function in multiple ways
 _result = None
 _called = False
 
-# 策略0: 空输入 -> 尝试无参数或空列表调用
+# Strategy 0: Empty input -> try calling with no args or empty list
 if not _called and len(_lines) == 0:
     try:
         _result = _fn()
@@ -510,7 +510,7 @@ if not _called and len(_lines) == 0:
         except:
             pass
 
-# 策略1: 单行单个整数
+# Strategy 1: Single line single integer
 if not _called and len(_lines) == 1:
     line = _lines[0].strip()
     if line.lstrip('-').isdigit():
@@ -521,7 +521,7 @@ if not _called and len(_lines) == 1:
         except:
             pass
 
-# 策略2: 单行空格分隔整数 -> 作为列表
+# Strategy 2: Single line space-separated integers -> as list
 if not _called and len(_lines) == 1:
     try:
         _arr = list(map(int, _lines[0].split()))
@@ -530,12 +530,12 @@ if not _called and len(_lines) == 1:
     except:
         pass
 
-# 策略3: 第一行是n，第二行是数组
+# Strategy 3: First line is n, second line is array
 if not _called and len(_lines) >= 2:
     try:
         _n = int(_lines[0])
         _arr = list(map(int, _lines[1].split()))
-        # 尝试不同参数组合
+        # Try different parameter combinations
         for _args in [(_n, _arr), (_arr,), (_n, _arr, len(_arr), len(_arr))]:
             if not _called:
                 try:
@@ -546,7 +546,7 @@ if not _called and len(_lines) >= 2:
     except:
         pass
 
-# 策略4: 多行 -> 每行解析为整数或数组
+# Strategy 4: Multiple lines -> parse each line as integer or array
 if not _called and len(_lines) >= 2:
     try:
         _parsed = []
@@ -561,7 +561,7 @@ if not _called and len(_lines) >= 2:
             else:
                 _parsed.append(line)
         
-        # 尝试传递所有解析结果作为参数
+        # Try passing all parsed results as parameters
         if len(_parsed) == 1:
             _result = _fn(_parsed[0])
             _called = True
@@ -578,7 +578,7 @@ if not _called and len(_lines) >= 2:
     except:
         pass
 
-# 策略5: 所有行拼接成整数列表
+# Strategy 5: Concatenate all lines into integer list
 if not _called and len(_lines) >= 1:
     try:
         _all_ints = []
@@ -592,7 +592,7 @@ if not _called and len(_lines) >= 1:
     except:
         pass
 
-# 策略6: 字符串参数
+# Strategy 6: String arguments
 if not _called and len(_lines) >= 1:
     try:
         if len(_lines) == 1:
@@ -603,25 +603,25 @@ if not _called and len(_lines) >= 1:
     except:
         pass
 
-# 输出结果
+# Output result
 if _result is not None:
     if isinstance(_result, list):
         if _result and isinstance(_result[0], list):
-            # 二维数组
+            # 2D array
             for _row in _result:
                 print(' '.join(map(str, _row)))
         else:
-            # 一维数组
+            # 1D array
             print(' '.join(map(str, _result)))
     elif isinstance(_result, bool):
-        # 布尔值转小写
+        # Boolean to lowercase
         print(str(_result).lower())
     elif isinstance(_result, tuple):
         print(' '.join(map(str, _result)))
     else:
         print(_result)
 elif _result == 0:
-    # 显式处理返回 0 的情况
+    # Explicitly handle case where return value is 0
     print(0)
 '''
     return wrapper
@@ -629,55 +629,55 @@ elif _result == 0:
 
 def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
     """
-    智能适配代码风格：如果代码是函数式，将其转换为可执行的 stdin/stdout 脚本。
+        Smart code style adaptation: if code is function-style, convert it to executable stdin/stdout script.
     
-    当训练数据使用函数式代码，但测试数据期望 stdin/stdout 风格时，
-    此函数自动检测并转换代码风格。
+    When training data uses function-style code, but test data expects stdin/stdout style,
+    this function automatically detects and converts code style.
     
     Args:
-        code: 模型生成的代码
-        inp: 测试输入（用于推断输入格式）
+        code: Model-generated code
+        inp: Test input (used to infer input format)
     
     Returns:
-        适配后的代码（如果是脚本式则原样返回，如果是函数式则添加包装器）
+        Adapted code (returns as-is if script-style, adds wrapper if function-style)
     """
-    # 检测代码风格
+    # Detect code style
     has_def = bool(re.search(r'\bdef\s+\w+\s*\(', code))
     has_input = bool(re.search(r'\binput\s*\(', code))
     has_print = bool(re.search(r'\bprint\s*\(', code))
     has_class = bool(re.search(r'\bclass\s+\w+', code))
     
-    # 如果已经是脚本式（有 input 和 print），直接返回
+    # If already script-style (has input and print), return directly
     if has_input and has_print:
         return code
     
-    # 如果是纯脚本式（只有 print，没有 def），直接返回
+    # If pure script-style (only print, no def), return directly
     if has_print and not has_def:
         return code
     
-    # 如果是函数式代码（有 def，没有 input），需要包装
+    # If function-style code (has def, no input), needs wrapper
     if has_def and not has_input:
-        # 查找主函数名（优先级：solve > Solution类的方法 > 其他函数）
+        # Find main function name (priority: solve > Solution class method > other functions)
         fn_name = None
         
-        # 优先查找 solve 函数
+        # Prefer to find solve function
         solve_match = re.search(r'\bdef\s+(solve)\s*\(', code)
         if solve_match:
             fn_name = solve_match.group(1)
         else:
-            # 查找 Solution 类的方法（排除 __init__）
+            # Find Solution class method (exclude __init__)
             if has_class:
                 method_match = re.search(r'\bclass\s+Solution\b.*?\bdef\s+(\w+)\s*\(self', code, re.DOTALL)
                 if method_match and method_match.group(1) != '__init__':
-                    # 对于 Solution 类，需要特殊处理
+                    # For Solution class, needs special handling
                     fn_name = f"Solution().{method_match.group(1)}"
             
-            # 查找任意顶层函数（非类方法）
+            # Find any top-level function (non-class method)
             if not fn_name:
-                # 查找所有顶层函数定义
+                # Find all top-level function definitions
                 top_level_funcs = re.findall(r'^def\s+(\w+)\s*\(', code, re.MULTILINE)
                 if top_level_funcs:
-                    # 排除常见的辅助函数名
+                    # Exclude common helper function names
                     for func in top_level_funcs:
                         if func not in ['main', 'test', 'helper', '__init__']:
                             fn_name = func
@@ -688,7 +688,7 @@ def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
         if fn_name:
             return _generate_function_wrapper(code, fn_name, inp)
     
-    # 其他情况直接返回原代码
+    # Other cases return original code directly
     return code
 
 
@@ -704,7 +704,7 @@ def _convert_stdin_test_enhanced(inp, exp, code: str, idx: int) -> str:
         code: Solution code to execute
         idx: Test case index
     """
-    # 健壮的输入处理 - 确保 inp 最终是字符串
+    # Robust input handling - ensure inp is ultimately a string
     def to_string(val):
         """Helper to convert any value to string for stdin."""
         if val is None:
@@ -712,31 +712,31 @@ def _convert_stdin_test_enhanced(inp, exp, code: str, idx: int) -> str:
         if isinstance(val, str):
             return val
         if isinstance(val, list):
-            # 递归处理列表中的每个元素
+            # Recursively process each element in list
             processed = []
             for item in val:
                 if isinstance(item, list):
-                    # 嵌套列表：每个子列表用空格分隔，不同子列表用换行分隔
+                    # Nested list: each sublist space-separated, different sublists newline-separated
                     processed.append(' '.join(str(x) for x in item))
                 else:
                     processed.append(str(item))
             return '\n'.join(processed)
-        # 其他类型直接转字符串
+        # Other types convert directly to string
         return str(val)
     
-    # 转换输入
+    # Convert input
     inp = to_string(inp)
     
-    # 确保输入以换行结尾
+    # Ensure input ends with newline
     if inp and not inp.endswith('\n'):
         inp += '\n'
     
-    # 处理列表形式的输出  
+    # Handle list format output  
     if isinstance(exp, list):
         exp = '\n'.join(str(e) for e in exp)
     
-    # ===== NEW: 智能适配代码风格 =====
-    # 如果代码是函数式（def solve(...)），自动添加包装器使其能在 stdin/stdout 模式下运行
+    # ===== NEW: Smart code style adaptation =====
+    # If code is function-style (def solve(...)), automatically add wrapper to run in stdin/stdout mode
     adapted_code = _adapt_code_for_stdin_test(code, inp)
     
     return f'''
@@ -761,7 +761,7 @@ assert _n{idx}(_o{idx})==_n{idx}(_e{idx}),f"Test {idx} failed: got {{repr(_o{idx
 
 def _convert_func_test_enhanced(fn: str, inputs: any, exp: any, idx: int) -> str:
     """Convert function_call test to executable assert (enhanced version)."""
-    # 处理输入参数
+    # Handle input parameters
     if isinstance(inputs, list):
         args = ', '.join(repr(x) for x in inputs)
     elif inputs is None:
@@ -769,7 +769,7 @@ def _convert_func_test_enhanced(fn: str, inputs: any, exp: any, idx: int) -> str
     else:
         args = repr(inputs)
     
-    # 处理期望值
+    # Handle expected value
     if isinstance(exp, list) and len(exp) == 1:
         exp_val = exp[0]
     else:
@@ -779,7 +779,7 @@ def _convert_func_test_enhanced(fn: str, inputs: any, exp: any, idx: int) -> str
 # Test {idx}
 _r{idx}={fn}({args})
 _e{idx}={repr(exp_val)}
-# 支持浮点数近似比较
+# Support floating point approximate comparison
 if isinstance(_r{idx}, float) and isinstance(_e{idx}, float):
     assert abs(_r{idx} - _e{idx}) < 1e-6, f"Test {idx} failed: got {{_r{idx}}} expected {{_e{idx}}}"
 else:
@@ -787,7 +787,7 @@ else:
 '''
 
 
-# 保留旧函数以兼容
+# Keep old function for compatibility
 def _convert_stdin_test(test: dict, code: str, idx: int) -> str:
     """Legacy wrapper for stdin_stdout test conversion."""
     inp = test.get('input', '')
@@ -811,13 +811,13 @@ def build_json_test_code(tests_raw: list, solution_code: str, max_tests: int = 5
     test_codes = []
     for i, t in enumerate(tests_raw[:max_tests]):
         if isinstance(t, dict):
-            # 直接是 dict
+            # Direct dict
             test_codes.append(parse_json_test(json.dumps(t), solution_code, i))
         elif isinstance(t, str):
-            # 字符串形式的 JSON 或原始代码
+            # String form JSON or raw code
             test_codes.append(parse_json_test(t, solution_code, i))
         else:
-            # 其他类型，尝试转换
+            # Other types, try to convert
             test_codes.append(parse_json_test(str(t), solution_code, i))
     
     return '\n'.join(test_codes)
@@ -1277,14 +1277,14 @@ def evaluate(config: dict) -> Dict[str, Any]:
     
     eval_config = config.get('eval', {})
     
-    # P0-FIX: 增强 k_values 解析逻辑
-    # 支持：整数 10、字符串 "10"、逗号分隔 "1,5,10"
+    # P0-FIX: Enhanced k_values parsing logic
+    # Supports: integer 10, string "10", comma-separated "1,5,10"
     k_config = eval_config.get('k', '1,5,10')
     if isinstance(k_config, int):
-        # 单个整数：确保同时包含标准的 1, 5, 10
+        # Single integer: ensure also includes standard 1, 5, 10
         k_values = sorted(set([1, 5, 10, k_config]))
     elif isinstance(k_config, str):
-        # 字符串：解析并合并标准值
+        # String: parse and merge with standard values
         try:
             parsed = [int(k.strip()) for k in k_config.split(',') if k.strip()]
             k_values = sorted(set([1, 5, 10] + parsed))
@@ -1292,20 +1292,20 @@ def evaluate(config: dict) -> Dict[str, Any]:
             logger.warning(f"Invalid k value format: {k_config}, using default [1, 5, 10]")
             k_values = [1, 5, 10]
     elif isinstance(k_config, list):
-        # 列表：直接使用并确保包含标准值
+        # List: use directly and ensure includes standard values
         k_values = sorted(set([1, 5, 10] + [int(k) for k in k_config]))
     else:
         k_values = [1, 5, 10]
     
     logger.info(f"Pass@k values to calculate: {k_values}")
     
-    # 优先使用用户配置的 numSamples，否则使用 max(k_values) 作为默认值
+    # Prefer user configured numSamples, otherwise use max(k_values) as default
     num_samples = eval_config.get('numSamples', max(k_values) if k_values else 10)
     max_tokens = eval_config.get('maxTokens', 256)
     temperature = eval_config.get('temperature', 0.2)
     top_p = eval_config.get('topP', 0.95)
     timeout = eval_config.get('timeout', EXECUTION_TIMEOUT)
-    memory_limit_mb = eval_config.get('memoryLimit', None)  # 内存限制 (MB)
+    memory_limit_mb = eval_config.get('memoryLimit', None)  # Memory limit (MB)
     seed = config.get('seed', 42)
     
     # Feature flags
@@ -1316,7 +1316,7 @@ def evaluate(config: dict) -> Dict[str, Any]:
     enable_code_quality = eval_config.get('enableCodeQuality', True)
     enable_postprocess = eval_config.get('enablePostProcess', False)
     
-    # 每个问题的最大测试用例数（限制超长测试集，加速评估）
+    # Max test cases per problem (limit long test sets, speed up evaluation)
     max_tests_per_problem = eval_config.get('maxTestsPerProblem', 10)
     logger.info(f"Max tests per problem: {max_tests_per_problem}")
     
@@ -1353,7 +1353,7 @@ def evaluate(config: dict) -> Dict[str, Any]:
     )
     
     # =========================================================================
-    # P1: 设置随机种子确保可复现性
+    # P1: Set random seeds to ensure reproducibility
     # =========================================================================
     import random
     import numpy as np
@@ -1369,17 +1369,17 @@ def evaluate(config: dict) -> Dict[str, Any]:
         except ImportError:
             pass
     
-    # P1: 记录可复现性信息
+    # P1: Record reproducibility info
     eval_logger_instance.set_reproducibility_info(
         eval_log,
         python_seed=seed,
         numpy_seed=seed,
         torch_seed=seed,
         evaluator_version="1.0.0",
-        checkpoint_hash=None,  # TODO: 计算模型 checkpoint hash
+        checkpoint_hash=None,  # TODO: Calculate model checkpoint hash
     )
     
-    # P1: 设置评测方法论配置
+    # P1: Set evaluation methodology config
     eval_logger_instance.set_evaluation_protocol(
         eval_log,
         samples_per_task=num_samples,
@@ -1471,7 +1471,7 @@ def evaluate(config: dict) -> Dict[str, Any]:
     
     failures = []
     
-    # ===== CHECKPOINT RESUME: 检查是否存在断点，从断点恢复评测 =====
+    # ===== CHECKPOINT RESUME: Check if checkpoint exists, resume from checkpoint =====
     start_problem_idx = 0
     checkpoint_files = []
     try:
@@ -1490,7 +1490,7 @@ def evaluate(config: dict) -> Dict[str, Any]:
             with open(checkpoint_path, 'r') as f:
                 checkpoint_data = json.load(f)
             
-            # 恢复状态
+            # Restore state
             start_problem_idx = checkpoint_data.get('completed_problems', 0)
             total_samples = checkpoint_data.get('total_samples', 0)
             total_passed = checkpoint_data.get('total_passed', 0)
@@ -1525,7 +1525,7 @@ def evaluate(config: dict) -> Dict[str, Any]:
     for i, problem in enumerate(problems):
         task_id = problem.get('task_id', problem.get('id', str(i)))
         
-        # ===== CHECKPOINT RESUME: 跳过已完成的问题 =====
+        # ===== CHECKPOINT RESUME: Skip completed problems =====
         if i < start_problem_idx:
             continue
         
@@ -1547,7 +1547,7 @@ def evaluate(config: dict) -> Dict[str, Any]:
                 }), flush=True)
         
         # ===== CHECKPOINT: Save progress every 10 problems to avoid losing work on interrupt =====
-        # 更频繁的保存以支持断点恢复
+        # More frequent saving to support checkpoint resume
         if i > 0 and i % 10 == 0 and total_samples > 0:
             checkpoint_path = os.path.join(output_dir, f'checkpoint_{i}.json')
             checkpoint_data = {
@@ -1758,10 +1758,10 @@ def evaluate(config: dict) -> Dict[str, Any]:
                     if len(failures) < 50:
                         failures.append({
                             "taskId": task_id,
-                            "prompt": instruction,  # 完整保存
-                            "output": extracted_code,  # 完整保存
+                            "prompt": instruction,  # Save complete
+                            "output": extracted_code,  # Save complete
                             "errorType": exec_result.error_type.value,
-                            "error": exec_result.error_message,  # 完整保存
+                            "error": exec_result.error_message,  # Save complete
                             "executionTimeMs": exec_result.execution_time_ms
                         })
         
@@ -1789,10 +1789,10 @@ def evaluate(config: dict) -> Dict[str, Any]:
                         sample_index=sample_index,
                         difficulty=difficulty,
                         category=category,
-                        prompt=instruction,  # 完整保存，不截断
-                        raw_output=completion,  # 完整保存，不截断
-                        post_process_output=extracted_code,  # 完整保存，不截断
-                        traceback=exec_result.error_message if exec_result.error_message else None,  # 完整保存
+                        prompt=instruction,  # Save complete, no truncation
+                        raw_output=completion,  # Save complete, no truncation
+                        post_process_output=extracted_code,  # Save complete, no truncation
+                        traceback=exec_result.error_message if exec_result.error_message else None,  # Save complete
                         execution_time_ms=exec_result.execution_time_ms,
                         verdict=verdict,
                         error_type=exec_result.error_type.value if exec_result.error_type != ErrorType.NONE else None,
@@ -2066,7 +2066,7 @@ def evaluate(config: dict) -> Dict[str, Any]:
     eval_logger_instance.set_failure_examples_by_type(
         eval_log, 
         eval_log.sample_results,
-        max_per_type=3  # 每种错误类型最多3个代表性案例
+        max_per_type=3  # Max 3 representative cases per error type
     )
     
     # Finalize and save

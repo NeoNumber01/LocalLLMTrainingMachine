@@ -6,11 +6,11 @@ import { prisma } from '../db/prisma-client.js';
 
 export async function playgroundRoutes(fastify: FastifyInstance) {
 
-    // POST /api/playground/infer - 推理请求 (Streaming)
+    // POST /api/playground/infer - Inference request (Streaming)
     fastify.post('/infer', {
         schema: {
             tags: ['Playground'],
-            summary: '使用本地模型进行推理 (SSE Stream)',
+            summary: 'Use local model for inference (SSE Stream)',
             body: {
                 type: 'object',
                 required: ['modelId', 'systemPrompt', 'messages'],
@@ -37,7 +37,7 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         const body = request.body as InferRequest;
 
-        // 1. 获取模型信息
+        // 1. Get model information
         const model = await prisma.model.findUnique({
             where: { id: body.modelId },
         });
@@ -46,7 +46,7 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
             return reply.status(400).send({ error: 'Model not found' });
         }
 
-        // 2. 获取 adapter 信息（如果有）
+        // 2. Get adapter information (if any)
         let adapterPath: string | undefined;
         if (body.adapterId) {
             const adapter = await prisma.adapter.findUnique({
@@ -59,34 +59,34 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
 
         console.log(`[Playground] Inference request: ${model.name}`);
 
-        // 3. 设置 SSE 响应头
+        // 3. Set SSE response headers
         reply.raw.setHeader('Content-Type', 'text/event-stream');
         reply.raw.setHeader('Cache-Control', 'no-cache');
         reply.raw.setHeader('Connection', 'keep-alive');
 
-        // CORS 处理
+        // CORS handling
         const origin = request.headers.origin || '*';
         reply.raw.setHeader('Access-Control-Allow-Origin', origin);
         reply.raw.setHeader('Access-Control-Allow-Credentials', 'true');
 
-        // 发送初始化头部
+        // Send initialization headers
         reply.raw.flushHeaders();
         reply.raw.write(': keeping connection alive\n\n');
 
         try {
-            // 4. 加载模型 (如果需要)
-            // 这可能会花费一些时间，所以我们先发送了 keep-alive
-            // 模型服务那边会处理锁和重复加载检查
+            // 4. Load model (if needed)
+            // This may take some time, so we sent keep-alive first
+            // Model service handles locking and duplicate load checking
             await modelServer.loadModel(model.path, adapterPath, body.quantization);
 
 
-            // 5. 准备对话消息
+            // 5. Prepare conversation messages
             const messages = [
                 { role: 'system', content: body.systemPrompt },
                 ...body.messages
             ];
 
-            // 6. 发起流式请求
+            // 6. Initiate streaming request
             const stream = await modelServer.chatStream({
                 messages,
                 max_tokens: body.maxTokens || 512,
@@ -103,7 +103,7 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
                 }
             });
 
-            // 等待流结束
+            // Wait for stream to end
             await new Promise((resolve, reject) => {
                 stream.on('end', resolve);
                 stream.on('error', (err: Error) => {
@@ -112,7 +112,7 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
                 });
             });
 
-            // 关键修复：正确关闭 SSE 连接，让前端知道流已结束
+            // Critical fix: properly close SSE connection to let frontend know stream has ended
             reply.raw.end();
 
         } catch (e: any) {
@@ -124,22 +124,22 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
         return reply;
     });
 
-    // POST /api/playground/unload - 卸载模型
+    // POST /api/playground/unload - Unload model
     fastify.post('/unload', {
         schema: {
             tags: ['Playground'],
-            summary: '卸载模型释放显存',
+            summary: 'Unload model to free GPU memory',
         },
     }, async (request, reply) => {
         await modelServer.unloadModel();
         return { status: 'unloaded' };
     });
 
-    // GET /api/playground/status - 检查推理服务状态和已加载模型
+    // GET /api/playground/status - Check inference service status and loaded model
     fastify.get('/status', {
         schema: {
             tags: ['Playground'],
-            summary: '检查推理服务状态和已加载模型信息',
+            summary: 'Check inference service status and loaded model info',
         },
     }, async (request, reply) => {
         try {
@@ -160,11 +160,11 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // POST /api/playground/load - 主动加载模型
+    // POST /api/playground/load - Actively load model
     fastify.post('/load', {
         schema: {
             tags: ['Playground'],
-            summary: '加载指定模型到显存',
+            summary: 'Load specified model to GPU memory',
             body: {
                 type: 'object',
                 required: ['modelId'],
@@ -178,7 +178,7 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         const body = request.body as { modelId: string; adapterId?: string; quantization?: string };
 
-        // 获取模型信息
+        // Get model information
         const model = await prisma.model.findUnique({
             where: { id: body.modelId },
         });
@@ -187,7 +187,7 @@ export async function playgroundRoutes(fastify: FastifyInstance) {
             return reply.status(400).send({ error: 'Model not found' });
         }
 
-        // 获取 adapter 信息（如果有）
+        // Get adapter information (if any)
         let adapterPath: string | undefined;
         let adapterName: string | undefined;
         if (body.adapterId && body.adapterId !== 'none') {

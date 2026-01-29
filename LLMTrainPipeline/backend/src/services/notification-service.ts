@@ -1,10 +1,10 @@
 import { prisma } from '../db/prisma-client.js';
 
-// 通知类型
+// Notification types
 export type NotificationType = 'run_completed' | 'run_failed' | 'resource_alert';
 
 /**
- * 创建新通知
+ * Create a new notification
  */
 export async function createNotification(
     type: NotificationType,
@@ -12,8 +12,8 @@ export async function createNotification(
     message: string,
     runId?: string
 ) {
-    // P0-FIX: 从正确的 key 'notifications' 读取设置
-    // settings.ts 保存时使用分别的 key: 'notifications', 'compute' 等
+    // P0-FIX: Read settings from correct key 'notifications'
+    // settings.ts saves using separate keys: 'notifications', 'compute' etc.
     const setting = await prisma.setting.findUnique({
         where: { key: 'notifications' }
     });
@@ -22,20 +22,20 @@ export async function createNotification(
         try {
             const notifications = JSON.parse(setting.valueJson);
 
-            // 如果任务完成通知被禁用
+            // If run completion notification is disabled
             if ((type === 'run_completed' || type === 'run_failed') &&
                 notifications?.runCompletion === false) {
                 console.log(`[Notification] Skipped: runCompletion notifications disabled`);
                 return null;
             }
 
-            // 如果资源警告通知被禁用
+            // If resource alert notification is disabled
             if (type === 'resource_alert' && notifications?.resourceAlerts === false) {
                 console.log(`[Notification] Skipped: resourceAlerts notifications disabled`);
                 return null;
             }
         } catch (e) {
-            // 解析失败则继续创建通知
+            // Continue creating notification on parse failure
         }
     }
 
@@ -53,7 +53,7 @@ export async function createNotification(
 }
 
 /**
- * 获取未读通知数量
+ * Get unread notification count
  */
 export async function getUnreadCount(): Promise<number> {
     return prisma.notification.count({
@@ -62,7 +62,7 @@ export async function getUnreadCount(): Promise<number> {
 }
 
 /**
- * 获取通知列表
+ * Get notification list
  */
 export async function getNotifications(options: {
     limit?: number;
@@ -80,7 +80,7 @@ export async function getNotifications(options: {
 }
 
 /**
- * 标记通知为已读
+ * Mark notification as read
  */
 export async function markAsRead(id: string) {
     return prisma.notification.update({
@@ -93,7 +93,7 @@ export async function markAsRead(id: string) {
 }
 
 /**
- * 标记所有通知为已读
+ * Mark all notifications as read
  */
 export async function markAllAsRead() {
     return prisma.notification.updateMany({
@@ -106,7 +106,7 @@ export async function markAllAsRead() {
 }
 
 /**
- * 删除通知
+ * Delete notification
  */
 export async function deleteNotification(id: string) {
     return prisma.notification.delete({

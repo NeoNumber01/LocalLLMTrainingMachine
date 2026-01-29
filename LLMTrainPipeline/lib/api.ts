@@ -1,7 +1,7 @@
-// API 客户端 - 连接后端服务
+// API Client - Connects to backend service
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
-// 通用 fetch 封装
+// Generic fetch wrapper
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const res = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
@@ -106,7 +106,7 @@ export async function deleteRun(id: string) {
 }
 
 export async function createEvalRun(data: {
-    name?: string;  // 可选的自定义名称
+    name?: string;  // Optional custom name
     modelId: string;
     adapterId?: string;
     datasetId: string;
@@ -147,7 +147,7 @@ export async function fetchRunArtifacts(id: string) {
     return fetchApi<any[]>(`/runs/${id}/artifacts`);
 }
 
-// SSE 日志流
+// SSE log stream
 export function connectRunLogs(id: string, onEvent: (event: any) => void): EventSource {
     const eventSource = new EventSource(`${API_BASE}/runs/${id}/logs/stream`);
 

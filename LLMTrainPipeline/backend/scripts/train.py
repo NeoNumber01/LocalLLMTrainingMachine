@@ -117,19 +117,19 @@ class TrainingEventCallback(TrainerCallback):
     
     def __init__(self):
         super().__init__()
-        self._last_logged_step = -1  # P0-4: 跟踪上次记录的 step 避免重复
+        self._last_logged_step = -1  # P0-4: Track last logged step to avoid duplicates
     
     def on_log(self, args, state, control, logs=None, **kwargs):
         """Called when training metrics are logged."""
         if logs:
-            # P0-FIX: 仅记录 step-level 的 loss，忽略 train_loss（epoch 平均值）
-            # train_loss 是训练结束后的平均 loss，不应作为 step 指标记录
-            # 否则会导致 Final Loss 异常跳跃（例如从 0.03 跳到 1.48）
+            # P0-FIX: Only log step-level loss, ignore train_loss (epoch average)
+            # train_loss is the average loss after training ends, should not be logged as step metric
+            # Otherwise it causes Final Loss to jump abnormally (e.g., from 0.03 to 1.48)
             loss = logs.get('loss')
             if loss is None:
-                # train_loss 是 epoch 结束时的平均 loss，跳过记录
+                # train_loss is the average loss at end of epoch, skip logging
                 return
-            # P0-4: 避免同一 step 重复输出
+            # P0-4: Avoid duplicate output for same step
             if loss is not None and state.global_step > self._last_logged_step:
                 self._last_logged_step = state.global_step
                 event = {
@@ -252,7 +252,7 @@ def setup_lora(model, lora_config: dict):
     rank = lora_config.get('rank', 16)
     alpha = lora_config.get('alpha', 32)
     dropout = lora_config.get('dropout', 0.05)
-    bias = lora_config.get('bias', 'none')  # 使用用户配置，默认 'none'
+    bias = lora_config.get('bias', 'none')  # Use user config, default 'none'
     
     # Extended target modules (like LeoLLM)
     default_targets = [
@@ -269,7 +269,7 @@ def setup_lora(model, lora_config: dict):
         lora_alpha=alpha,
         lora_dropout=dropout,
         target_modules=target_modules,
-        bias=bias,  # 使用用户配置的 bias
+        bias=bias,  # Use user configured bias
     )
     
     model = get_peft_model(model, peft_config)
@@ -372,7 +372,7 @@ def prepare_dataset_messages(dataset_path: str) -> Dataset:
         logger.warning(f"Skipped {skipped} invalid samples")
     
     if len(training_data) == 0:
-        # 详细诊断信息
+        # Detailed diagnostic info
         logger.error("=" * 60)
         logger.error("DATASET ERROR: No valid training samples found!")
         logger.error(f"Raw dataset size: {len(raw_dataset)}")
@@ -456,7 +456,7 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
     logger.info("Training with TRL SFTTrainer (messages format)")
     
     # ==========================================================================
-    # 基础训练参数
+    # Basic training parameters
     # ==========================================================================
     num_epochs = training_config.get('epochs', 3)
     batch_size = training_config.get('batchSize', 1)
@@ -467,7 +467,7 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
     quantization = training_config.get('quantization', '4bit')
     
     # ==========================================================================
-    # 核心训练参数 (新增)
+    # Core training parameters (new)
     # ==========================================================================
     logging_steps = training_config.get('loggingSteps', 10)
     save_steps = training_config.get('saveSteps', 100)
@@ -475,32 +475,32 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
     max_grad_norm = training_config.get('gradientClipping', 1.0)
     
     # ==========================================================================
-    # Warmup 配置 (新增) - 支持 ratio 或 steps 二选一
+    # Warmup configuration (new) - supports ratio or steps mutually exclusive
     # ==========================================================================
     warmup_type = training_config.get('warmupType', 'ratio')
     warmup_ratio = training_config.get('warmupRatio', 0.03)
     warmup_steps_cfg = training_config.get('warmupSteps', 0)
     
-    # 根据 warmupType 决定使用 ratio 还是 steps
+    # Decide whether to use ratio or steps based on warmupType
     if warmup_type == 'steps' and warmup_steps_cfg > 0:
-        effective_warmup_ratio = 0  # 使用 steps 时禁用 ratio
+        effective_warmup_ratio = 0  # Disable ratio when using steps
         effective_warmup_steps = warmup_steps_cfg
     else:
         effective_warmup_ratio = warmup_ratio
-        effective_warmup_steps = 0  # 使用 ratio 时禁用 steps
+        effective_warmup_steps = 0  # Disable steps when using ratio
     
     # ==========================================================================
-    # 验证配置 (新增)
+    # Validation configuration (new)
     # ==========================================================================
     eval_strategy = training_config.get('evalStrategy', 'epoch')
     eval_steps_cfg = training_config.get('evalSteps', 200)
     
-    # 如果没有验证集，强制设置为 "no"
+    # If no validation set, force set to "no"
     if eval_dataset is None:
         eval_strategy = 'no'
     
     # ==========================================================================
-    # 高级训练选项 (新增)
+    # Advanced training options (new)
     # ==========================================================================
     early_stopping_enabled = training_config.get('earlyStoppingEnabled', False)
     early_stopping_patience = training_config.get('earlyStoppingPatience', 3)
@@ -509,7 +509,7 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
     metric_for_best_model = training_config.get('metricForBestModel', 'loss')
     
     # ==========================================================================
-    # 优化器与调度器
+    # Optimizer and scheduler
     # ==========================================================================
     optimizer = training_config.get('optimizer', 'paged_adamw_8bit')
     if quantization in ['4bit', '8bit'] and optimizer == 'adamw_torch':
@@ -523,7 +523,7 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
     scheduler = training_config.get('scheduler', 'cosine')
 
     # ==========================================================================
-    # 日志输出完整配置信息
+    # Log complete configuration info
     # ==========================================================================
     logger.info(f"Training config: epochs={num_epochs}, batch_size={batch_size}, "
                 f"grad_accum={grad_accum}, lr={learning_rate}, optimizer={optimizer}, "
@@ -534,7 +534,7 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
     logger.info(f"Advanced: max_grad_norm={max_grad_norm}, early_stopping={early_stopping_enabled}")
     
     # ==========================================================================
-    # SFTConfig - 使用所有用户配置的参数
+    # SFTConfig - use all user configured parameters
     # ==========================================================================
     sft_config = SFTConfig(
         output_dir=output_dir,
@@ -545,47 +545,47 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
         weight_decay=weight_decay,
         lr_scheduler_type=scheduler,
         
-        # Warmup 配置 - 根据用户选择使用 ratio 或 steps
+        # Warmup configuration - use ratio or steps based on user selection
         warmup_ratio=effective_warmup_ratio,
         warmup_steps=effective_warmup_steps,
         
         # Optimizer
         optim=optimizer,
         
-        # Precision - 量化模型禁用以避免冲突
+        # Precision - disable for quantized models to avoid conflicts
         fp16=use_fp16,
         bf16=use_bf16,
         
-        # 内存优化
+        # Memory optimization
         gradient_checkpointing=True,
-        max_grad_norm=max_grad_norm,  # 梯度裁剪
+        max_grad_norm=max_grad_norm,  # Gradient clipping
         
-        # 日志和保存 - 使用用户配置
+        # Logging and saving - use user configuration
         logging_steps=logging_steps,
         save_steps=save_steps,
         save_total_limit=save_total_limit,
         report_to="none",
         
-        # 验证配置 - 使用用户配置
+        # Validation configuration - use user configuration
         eval_strategy=eval_strategy,
         eval_steps=eval_steps_cfg if eval_strategy == 'steps' else None,
         
-        # 最佳模型选择
+        # Best model selection
         load_best_model_at_end=load_best_model_at_end if eval_strategy != 'no' else False,
         metric_for_best_model=metric_for_best_model if eval_strategy != 'no' else None,
         greater_is_better=False if metric_for_best_model == 'loss' else True,
         
-        # SFT 特定参数
+        # SFT specific parameters
         max_length=max_length,
-        packing=False,  # 不打包以保证准确性
+        packing=False,  # No packing for accuracy
     )
     
     # ==========================================================================
-    # 创建回调列表
+    # Create callback list
     # ==========================================================================
     callbacks = [TrainingEventCallback()]
     
-    # 早停回调 (如果启用)
+    # Early stopping callback (if enabled)
     if early_stopping_enabled and eval_strategy != 'no':
         from transformers import EarlyStoppingCallback
         early_stopping_callback = EarlyStoppingCallback(
@@ -605,7 +605,7 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
         callbacks=callbacks,
     )
     
-    # ===== CHECKPOINT RESUME: 自动检测并从 checkpoint 恢复训练 =====
+    # ===== CHECKPOINT RESUME: Auto-detect and resume training from checkpoint =====
     resume_from_checkpoint = None
     if os.path.exists(output_dir):
         checkpoints = [
@@ -613,7 +613,7 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
             if d.startswith('checkpoint-') and os.path.isdir(os.path.join(output_dir, d))
         ]
         if checkpoints:
-            # 获取最新的 checkpoint（按 step 数排序）
+            # Get latest checkpoint (sorted by step number)
             checkpoints.sort(key=lambda x: int(x.split('-')[1]), reverse=True)
             latest_checkpoint = os.path.join(output_dir, checkpoints[0])
             if os.path.exists(os.path.join(latest_checkpoint, 'trainer_state.json')):
@@ -664,19 +664,19 @@ def train_with_sft(model, tokenizer, dataset, eval_dataset, output_dir: str, tra
         steps_per_sec = actual_steps / training_time_sec
     
     # Output training_summary event for backend parsing
-    # P0-2/P0-3: 记录 config vs effective 的值以便报告显示
+    # P0-2/P0-3: Record config vs effective values for report display
     summary_event = {
         "type": "training_summary",
         "data": {
             "planned_steps": trainer.state.max_steps,
             "actual_steps": actual_steps,
             "initial_lr": initial_lr,
-            # P0-2: 记录配置 lr 和实际使用的 lr
+            # P0-2: Record configured lr and actually used lr
             "config_lr": str(training_config.get('lr', '2e-4')),
-            "effective_lr": learning_rate,  # 调整后的实际值
-            # P0-3: 记录配置 scheduler 和实际使用的 scheduler
+            "effective_lr": learning_rate,  # Actual adjusted value
+            # P0-3: Record configured scheduler and actually used scheduler
             "scheduler_config": training_config.get('scheduler', 'cosine'),
-            "scheduler_effective": scheduler,  # 实际使用的
+            "scheduler_effective": scheduler,  # Actually used
             "peak_gpu_memory_mb": peak_gpu_memory_mb,
             "tokens_per_second": tokens_per_sec,
             "steps_per_second": steps_per_sec,
@@ -831,7 +831,7 @@ def train(config: dict):
         experiment_log.dataset_info = exp_logger.collect_dataset_info(dataset_path, dataset, config)
         
         # =========================================================================
-        # Collect Data Quality Statistics (P2: 详细数据质量分析)
+        # Collect Data Quality Statistics (P2: Detailed data quality analysis)
         # =========================================================================
         try:
             from analyze_data_quality import DataQualityAnalyzer, output_data_quality_event

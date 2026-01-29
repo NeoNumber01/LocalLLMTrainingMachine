@@ -1,6 +1,6 @@
 """
-代码规范化模块
-强制接口、修复语法、自动 import
+Code Normalization Module
+Enforce interface, fix syntax, auto import
 """
 
 import ast
@@ -15,20 +15,20 @@ logger = logging.getLogger(__name__)
 
 class CodeNormalizer:
     """
-    代码规范化器
+    Code Normalizer
     
-    处理阶段：
-    1. 签名强制
-    2. I/O 移除
-    3. 缩进规范化
-    4. 关键字修正
-    5. 类型翻译
-    6. 自动 import
+    Processing phases:
+    1. Signature enforcement
+    2. I/O removal
+    3. Indentation normalization
+    4. Keyword correction
+    5. Type translation
+    6. Auto import
     """
     
-    # 关键字修正映射
+    # Keyword correction mapping
     KEYWORD_FIXES = {
-        # 控制流
+        # Control flow
         r'\belseif\b': 'elif',
         r'\belse\s+if\b': 'elif',
         r'\belsif\b': 'elif',
@@ -41,7 +41,7 @@ class CodeNormalizer:
         r'\bsub\b': 'def',
         r'\bprocedure\b': 'def',
         
-        # 变量声明（移除）
+        # Variable declarations (remove)
         r'\bvar\s+': '',
         r'\blet\s+': '',
         r'\bconst\s+': '',
@@ -51,7 +51,7 @@ class CodeNormalizer:
         r'\bprivate\s+': '',
         r'\bprotected\s+': '',
         
-        # 运算符
+        # Operators
         r'===': '==',
         r'!==': '!=',
         r'&&': ' and ',
@@ -60,20 +60,20 @@ class CodeNormalizer:
         r'\bmod\b': '%',
         r'\bdiv\b': '//',
         
-        # 布尔值
+        # Boolean values
         r'\btrue\b': 'True',
         r'\bTRUE\b': 'True',
         r'\bfalse\b': 'False',
         r'\bFALSE\b': 'False',
         
-        # 空值
+        # Null values
         r'\bnull\b': 'None',
         r'\bNULL\b': 'None',
         r'\bnil\b': 'None',
         r'\bundefined\b': 'None',
         r'\bnullptr\b': 'None',
         
-        # 类型
+        # Types
         r'\bvoid\b': 'None',
         r'\bboolean\b': 'bool',
         r'\bBoolean\b': 'bool',
@@ -88,7 +88,7 @@ class CodeNormalizer:
         r'\breturn\s+void\b': 'return None',
     }
     
-    # 泛型类型翻译
+    # Generic type translation
     GENERIC_TYPE_PATTERNS = [
         (r'\bList<([^>]+)>', r'List[\1]'),
         (r'\blist<([^>]+)>', r'List[\1]'),
@@ -110,7 +110,7 @@ class CodeNormalizer:
     ]
     
     def __init__(self):
-        """初始化规范化器"""
+        """Initialize normalizer"""
         self._keyword_patterns = [
             (re.compile(pattern, re.IGNORECASE), replacement)
             for pattern, replacement in self.KEYWORD_FIXES.items()
@@ -122,41 +122,41 @@ class CodeNormalizer:
     
     def normalize(self, code: str, signature: str, function_name: str = "solve") -> str:
         """
-        规范化代码
+        Normalize code
         
         Args:
-            code: 输入代码
-            signature: 期望的函数签名
-            function_name: 函数名
+            code: Input code
+            signature: Expected function signature
+            function_name: Function name
             
         Returns:
-            规范化后的代码
+            Normalized code
         """
         if not code:
             return self._create_stub(signature)
         
-        # 1. 强制签名
+        # 1. Enforce signature
         code = self._enforce_signature(code, signature, function_name)
         
-        # 2. 移除 I/O
+        # 2. Remove I/O
         code = self._remove_io(code)
         
-        # 3. 缩进规范化
+        # 3. Normalize indentation
         code = self._normalize_indentation(code)
         
-        # 4. 关键字修正
+        # 4. Fix keywords
         code = self._fix_keywords(code)
         
-        # 5. 类型翻译
+        # 5. Translate types
         code = self._translate_types(code)
         
-        # 6. 自动 import
+        # 6. Auto import
         code = self._inject_imports(code)
         
         return code
     
     def _create_stub(self, signature: str) -> str:
-        """创建占位函数"""
+        """Create placeholder function"""
         sig = signature.strip()
         if not sig.endswith(':'):
             sig += ':'
@@ -164,39 +164,39 @@ class CodeNormalizer:
     
     def _enforce_signature(self, code: str, signature: str, function_name: str) -> str:
         """
-        强制函数签名
+        Enforce function signature
         """
         expected_sig = signature.strip()
         if not expected_sig.endswith(':'):
             expected_sig += ':'
         
-        # 匹配现有的函数定义
+        # Match existing function definition
         pattern = rf'^def\s+{function_name}[^\n]*'
         
         if re.search(pattern, code, re.MULTILINE):
-            # 替换现有签名
+            # Replace existing signature
             code = re.sub(pattern, expected_sig, code, count=1, flags=re.MULTILINE)
         else:
-            # 尝试找其他可能的核心函数
+            # Try to find other possible core functions
             other_func_pattern = r'^def\s+(\w+)\s*\([^)]*\)\s*(?:->.*?)?:'
             match = re.search(other_func_pattern, code, re.MULTILINE)
             
             if match:
-                # 找到其他函数，在其前面添加包装
+                # Found another function, add wrapper before it
                 other_name = match.group(1)
                 wrapper = f"{expected_sig}\n    return {other_name}(nums)\n\n"
                 code = wrapper + code
-                logger.debug(f"包装 {other_name} 为 {function_name}")
+                logger.debug(f"Wrapping {other_name} as {function_name}")
             else:
-                # 没有函数定义，尝试检测是否有函数体
+                # No function definition, check if there's a function body
                 lines = code.strip().split('\n')
                 if lines:
                     first_line = lines[0]
                     if first_line.startswith('    ') or first_line.startswith('\t'):
-                        # 有缩进，可能是函数体
+                        # Has indentation, might be function body
                         code = expected_sig + '\n' + code
                     else:
-                        # 没有缩进，添加缩进
+                        # No indentation, add indentation
                         indented = '\n'.join('    ' + line for line in lines)
                         code = expected_sig + '\n' + indented
         
@@ -204,15 +204,15 @@ class CodeNormalizer:
     
     def _remove_io(self, code: str) -> str:
         """
-        移除 I/O 操作
+        Remove I/O operations
         """
-        # 移除 print 语句（保留注释掉的版本方便调试）
+        # Remove print statements (keep commented version for debugging)
         code = re.sub(r'^(\s*)print\s*\([^)]*\)\s*$', r'\1pass  # print removed', code, flags=re.MULTILINE)
         
-        # 移除 input() 调用
+        # Remove input() calls
         code = re.sub(r'\binput\s*\([^)]*\)', '""', code)
         
-        # 移除 sys.stdin 读取
+        # Remove sys.stdin reads
         code = re.sub(r'\bsys\.stdin\.read\s*\([^)]*\)', '""', code)
         code = re.sub(r'\bsys\.stdin\.readline\s*\([^)]*\)', '""', code)
         
@@ -220,7 +220,7 @@ class CodeNormalizer:
     
     def _normalize_indentation(self, code: str) -> str:
         """
-        规范化缩进为 4 空格
+        Normalize indentation to 4 spaces
         """
         lines = code.split('\n')
         result = []
@@ -230,14 +230,14 @@ class CodeNormalizer:
                 result.append('')
                 continue
             
-            # 计算前导空白
+            # Calculate leading whitespace
             stripped = line.lstrip()
             leading = line[:len(line) - len(stripped)]
             
-            # Tab 转 4 空格
+            # Tab to 4 spaces
             leading = leading.replace('\t', '    ')
             
-            # 检测 2 空格缩进并转换
+            # Detect 2-space indent and convert
             space_count = len(leading)
             if space_count > 0 and space_count % 2 == 0 and space_count % 4 != 0:
                 leading = ' ' * (space_count * 2)
@@ -248,29 +248,29 @@ class CodeNormalizer:
     
     def _fix_keywords(self, code: str) -> str:
         """
-        修正关键字和语法
+        Fix keywords and syntax
         """
-        # 应用关键字替换
+        # Apply keyword replacements
         for pattern, replacement in self._keyword_patterns:
             code = pattern.sub(replacement, code)
         
-        # 修复 ++/--
+        # Fix ++/--
         code = re.sub(r'(\w+)\s*\+\+', r'\1 += 1', code)
         code = re.sub(r'(\w+)\s*--', r'\1 -= 1', code)
         code = re.sub(r'\+\+\s*(\w+)', r'\1 += 1', code)
         code = re.sub(r'--\s*(\w+)', r'\1 -= 1', code)
         
-        # 修复 ! 作为逻辑非
+        # Fix ! as logical not
         code = re.sub(r'!\s*([a-zA-Z_(])', r'not \1', code)
         
-        # 修复 foreach
+        # Fix foreach
         code = re.sub(r'\bforeach\s+', 'for ', code)
         
-        # 修复 C 风格注释
+        # Fix C-style comments
         lines = code.split('\n')
         fixed_lines = []
         for line in lines:
-            # 检查 // 是否在字符串外
+            # Check if // is outside string
             in_string = False
             quote_char = None
             i = 0
@@ -289,37 +289,37 @@ class CodeNormalizer:
             fixed_lines.append(line)
         code = '\n'.join(fixed_lines)
         
-        # 移除 C 风格块注释
+        # Remove C-style block comments
         code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)
         
-        # 移除行尾分号
+        # Remove trailing semicolons
         code = re.sub(r';\s*$', '', code, flags=re.MULTILINE)
         code = re.sub(r';\s*#', ' #', code)
         
-        # 修复 new 关键字
+        # Fix new keyword
         code = re.sub(r'\bnew\s+(\w+)\s*\(', r'\1(', code)
         
-        # 修复 this.
+        # Fix this.
         code = re.sub(r'\bthis\.', 'self.', code)
         
-        # 修复常见输出函数
+        # Fix common output functions
         code = re.sub(r'\bSystem\.out\.println\s*\(', 'print(', code)
         code = re.sub(r'\bconsole\.log\s*\(', 'print(', code)
         code = re.sub(r'\bprintf\s*\(', 'print(', code)
         code = re.sub(r'\bprintln\s*\(', 'print(', code)
         
-        # 修复数组长度
+        # Fix array length
         code = re.sub(r'(\w+)\.length\b(?!\s*\()', r'len(\1)', code)
         code = re.sub(r'(\w+)\.size\(\)', r'len(\1)', code)
         
-        # 修复常见方法
+        # Fix common methods
         code = re.sub(r'\.push\s*\(', '.append(', code)
         code = re.sub(r'\.add\s*\(', '.append(', code)
         code = re.sub(r'\.trim\s*\(\)', '.strip()', code)
         code = re.sub(r'\.toUpperCase\s*\(\)', '.upper()', code)
         code = re.sub(r'\.toLowerCase\s*\(\)', '.lower()', code)
         
-        # 修复 Math 函数
+        # Fix Math functions
         code = re.sub(r'\bMath\.abs\s*\(', 'abs(', code)
         code = re.sub(r'\bMath\.max\s*\(', 'max(', code)
         code = re.sub(r'\bMath\.min\s*\(', 'min(', code)
@@ -332,7 +332,7 @@ class CodeNormalizer:
     
     def _translate_types(self, code: str) -> str:
         """
-        翻译泛型类型
+        Translate generic types
         """
         for pattern, replacement in self._generic_patterns:
             code = pattern.sub(replacement, code)
@@ -340,25 +340,25 @@ class CodeNormalizer:
     
     def _inject_imports(self, code: str) -> str:
         """
-        自动注入缺失的 import
+        Auto-inject missing imports
         """
-        # 获取需要的 import
+        # Get required imports
         required = get_required_imports(code)
         
         if not required:
             return code
         
-        # 生成 import 语句
+        # Generate import statements
         import_block = generate_import_statements(required)
         
         if not import_block:
             return code
         
-        # 找到合适的插入位置
+        # Find suitable insertion position
         lines = code.split('\n')
         insert_pos = 0
         
-        # 跳过已有的 import 和空行
+        # Skip existing imports and empty lines
         for i, line in enumerate(lines):
             stripped = line.strip()
             if stripped.startswith(('import ', 'from ')):
@@ -366,31 +366,31 @@ class CodeNormalizer:
             elif stripped and not stripped.startswith('#'):
                 break
         
-        # 插入 import
+        # Insert imports
         lines.insert(insert_pos, import_block)
         if insert_pos > 0 and lines[insert_pos - 1].strip():
-            lines.insert(insert_pos, '')  # 添加空行分隔
+            lines.insert(insert_pos, '')  # Add empty line separator
         
-        logger.debug(f"注入 import: {required}")
+        logger.debug(f"Injected imports: {required}")
         
         return '\n'.join(lines)
     
     def add_safety_guards(self, code: str) -> str:
         """
-        添加安全防护代码
+        Add safety guard code
         """
         modifications = []
         
-        # 添加递归限制
+        # Add recursion limit
         if 'def ' in code and ('dfs' in code.lower() or 'recursive' in code.lower() or self._has_recursion(code)):
             if 'setrecursionlimit' not in code:
                 code = "import sys\nsys.setrecursionlimit(10**7)\n\n" + code
-                modifications.append("添加递归限制")
+                modifications.append("Added recursion limit")
         
         return code
     
     def _has_recursion(self, code: str) -> bool:
-        """检测是否有递归"""
+        """Detect if there is recursion"""
         try:
             tree = ast.parse(code)
             for node in ast.walk(tree):
@@ -401,7 +401,7 @@ class CodeNormalizer:
                             if isinstance(child.func, ast.Name) and child.func.id == func_name:
                                 return True
         except SyntaxError:
-            # 代码有语法错误，使用简单启发式
+            # Code has syntax error, use simple heuristic
             pattern = r'def\s+(\w+).*?\1\s*\('
             return bool(re.search(pattern, code, re.DOTALL))
         return False

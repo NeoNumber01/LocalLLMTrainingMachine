@@ -1,5 +1,5 @@
 """
-数据类型定义模块
+Data Types Definition Module
 """
 
 from dataclasses import dataclass, field
@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 
 
 class ErrorType(Enum):
-    """错误类型分类"""
+    """Error type classification"""
     NONE = "none"
     SYNTAX_ERROR = "syntax_error"
     INDENTATION_ERROR = "indentation_error"
@@ -31,30 +31,30 @@ class ErrorType(Enum):
 
 @dataclass
 class PipelineConfig:
-    """管线配置"""
-    # 修复循环控制
+    """Pipeline configuration"""
+    # Fix loop control
     max_rule_fix_attempts: int = 2
     max_patch_attempts: int = 3
     
-    # 执行配置
+    # Execution config
     execution_timeout: int = 10
     
-    # 功能开关
+    # Feature toggles
     enable_extract: bool = True
     enable_normalize: bool = True
     enable_validate: bool = True
     enable_rule_fix: bool = True
-    enable_patch_loop: bool = False  # 需要 LLM 支持
+    enable_patch_loop: bool = False  # Requires LLM support
     
-    # 测试配置
+    # Test config
     enable_fuzzing: bool = False
     fuzz_runs: int = 50
     
-    # 接口配置
+    # Interface config
     default_signature: str = "def solve(nums: list[int]) -> int:"
     function_name: str = "solve"
     
-    # 安全配置
+    # Security config
     block_dangerous_code: bool = True
     dangerous_patterns: List[str] = field(default_factory=lambda: [
         r'\beval\s*\(',
@@ -70,7 +70,7 @@ class PipelineConfig:
 
 @dataclass
 class ExecutionResult:
-    """代码执行结果"""
+    """Code execution result"""
     passed: bool
     error_type: ErrorType = ErrorType.NONE
     error_message: str = ""
@@ -83,7 +83,7 @@ class ExecutionResult:
 
 @dataclass
 class PhaseResult:
-    """单个处理阶段的结果"""
+    """Result of a single processing phase"""
     phase_name: str
     success: bool
     code: str
@@ -94,37 +94,37 @@ class PhaseResult:
 
 @dataclass
 class PipelineResult:
-    """管线处理完整结果"""
+    """Complete pipeline processing result"""
     success: bool
     final_code: str
     original_code: str
     
-    # 错误信息
+    # Error info
     error_type: Optional[ErrorType] = None
     error_message: Optional[str] = None
     
-    # 处理过程
+    # Processing progress
     phases_completed: List[str] = field(default_factory=list)
     phase_results: List[PhaseResult] = field(default_factory=list)
     
-    # 修复统计
+    # Fix statistics
     rule_fix_attempts: int = 0
     patch_attempts: int = 0
     fixes_applied: List[str] = field(default_factory=list)
     
-    # 性能
+    # Performance
     total_time_ms: float = 0.0
     execution_time_ms: float = 0.0
     
-    # 日志
+    # Logs
     logs: List[str] = field(default_factory=list)
     
     def add_log(self, message: str):
-        """添加日志"""
+        """Add log entry"""
         self.logs.append(message)
     
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """Convert to dictionary"""
         return {
             "success": self.success,
             "final_code": self.final_code,

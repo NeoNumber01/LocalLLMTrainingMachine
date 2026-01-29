@@ -4,11 +4,11 @@ import { prisma } from '../db/prisma-client.js';
 
 export async function compareRoutes(fastify: FastifyInstance) {
 
-    // POST /api/compare - 比较两个运行
+    // POST /api/compare - Compare two runs
     fastify.post('/', {
         schema: {
             tags: ['Compare'],
-            summary: '比较两个运行',
+            summary: 'Compare two runs',
             body: {
                 type: 'object',
                 required: ['baseRunId', 'candidateRunId'],
@@ -60,11 +60,11 @@ export async function compareRoutes(fastify: FastifyInstance) {
         const baseConfig = JSON.parse(baseRun.configJson);
         const candidateConfig = JSON.parse(candidateRun.configJson);
 
-        // 定义训练参数和评测参数
+        // Define training parameters and evaluation parameters
         const trainingParams = ['lr', 'epochs', 'batchSize', 'gradAccum', 'maxSeqLen', 'quantization', 'useLora', 'loraRank', 'loraAlpha', 'optimizer', 'scheduler', 'warmupRatio', 'precision'];
         const evalParams = ['evaluator', 'k', 'temperature', 'numSamples', 'timeout', 'maxTokens', 'memoryLimit', 'generateReport', 'saveFailureCases'];
 
-        // 计算配置差异
+        // Calculate configuration differences
         const configDiff: Array<{ param: string; base: any; candidate: any; category?: string }> = [];
         const allKeys = new Set([...Object.keys(baseConfig), ...Object.keys(candidateConfig)]);
 
@@ -74,13 +74,13 @@ export async function compareRoutes(fastify: FastifyInstance) {
             const baseValue = baseConfig[key];
             const candidateValue = candidateConfig[key];
 
-            // 跳过两边都是 null/undefined 的情况
+            // Skip cases where both are null/undefined
             if ((baseValue === null || baseValue === undefined) &&
                 (candidateValue === null || candidateValue === undefined)) {
                 continue;
             }
 
-            // 确定参数分类
+            // Determine parameter category
             let category = 'other';
             if (trainingParams.includes(key)) {
                 category = 'training';
@@ -89,7 +89,7 @@ export async function compareRoutes(fastify: FastifyInstance) {
             }
 
             if (sameType) {
-                // 同类型运行：只显示不同的配置
+                // Same type runs: only show different configurations
                 if (JSON.stringify(baseValue) !== JSON.stringify(candidateValue)) {
                     configDiff.push({
                         param: key,
@@ -99,17 +99,17 @@ export async function compareRoutes(fastify: FastifyInstance) {
                     });
                 }
             } else {
-                // 不同类型运行：显示有值的配置（跳过不相关的 null）
-                // 训练运行显示训练参数，评测运行显示评测参数
+                // Different type runs: show configurations with values (skip irrelevant nulls)
+                // Training runs show training params, evaluation runs show eval params
                 const trainingTypes = ['finetune', 'lora', 'pretrain'];
                 const baseIsTraining = trainingTypes.includes(baseRun.type);
                 const candidateIsTraining = trainingTypes.includes(candidateRun.type);
 
-                // 训练参数：只在有训练运行时显示
+                // Training params: only show when there is a training run
                 if (category === 'training' && !baseIsTraining && !candidateIsTraining) {
                     continue;
                 }
-                // 评测参数：只在有评测运行时显示
+                // Eval params: only show when there is an evaluation run
                 if (category === 'evaluation' && baseIsTraining && candidateIsTraining) {
                     continue;
                 }
@@ -123,7 +123,7 @@ export async function compareRoutes(fastify: FastifyInstance) {
             }
         }
 
-        // 按分类排序：training -> evaluation -> other
+        // Sort by category: training -> evaluation -> other
         const categoryOrder = { training: 0, evaluation: 1, other: 2 };
         configDiff.sort((a, b) => (categoryOrder[a.category as keyof typeof categoryOrder] || 2) - (categoryOrder[b.category as keyof typeof categoryOrder] || 2));
 
@@ -199,7 +199,7 @@ export async function compareRoutes(fastify: FastifyInstance) {
                         ...extra
                     };
                 })
-                .filter(m => m.loss != null || m.passAt1 != null);  // 保留有 loss 或 passAt1 的有效记录
+                .filter(m => m.loss != null || m.passAt1 != null);  // Keep valid records with loss or passAt1
         };
 
         const response: CompareResponse = {

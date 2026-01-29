@@ -31,7 +31,7 @@ export interface CreateRunDto {
     modelId: string;
     datasetId: string;
     evalDatasetId?: string;
-    adapterId?: string;  // 用于评测时指定使用的 adapter
+    adapterId?: string;  // Specify adapter to use during evaluation
     sourceRunId?: string;  // ID of the training run this eval is based on
     profileName?: string;
     config: Partial<RunConfig>;

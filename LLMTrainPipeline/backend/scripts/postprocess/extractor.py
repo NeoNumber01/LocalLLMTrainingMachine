@@ -1,16 +1,16 @@
 """
-代码抽取模块 v2.0 - 增强版
-从 LLM 原始输出中提取干净的 Python 代码
+Code Extraction Module v2.0 - Enhanced Version
+Extract clean Python code from LLM raw output
 
-支持格式：
-- Markdown 代码块 (```, ~~~)
-- XML/HTML 标签 (<code>, <solution>, <answer>, <artifact>)
-- JSON 包装 ({"code": "..."})
-- 模型特定格式 (DeepSeek, Claude, OpenAI)
-- 中英文对话噪音
-- 行号代码
-- 思考/推理块移除
-- stdin/stdout 脚本风格
+Supported formats:
+- Markdown code blocks (```, ~~~)
+- XML/HTML tags (<code>, <solution>, <answer>, <artifact>)
+- JSON wrapper ({"code": "..."})
+- Model-specific formats (DeepSeek, Claude, OpenAI)
+- Chinese/English conversation noise
+- Line-numbered code
+- Thinking/reasoning block removal
+- stdin/stdout script style
 """
 
 import html
@@ -25,95 +25,95 @@ logger = logging.getLogger(__name__)
 
 class CodeExtractor:
     """
-    代码抽取器 v2.0
+    Code Extractor v2.0
     
-    处理阶段：
-    0. 预处理（移除思考块、XML注释等）
-    1. 文本规范化（Unicode、BOM、ANSI）
-    2. 结构化包装提取（JSON、XML）
-    3. Markdown 代码块提取
-    4. 对话噪音移除
-    5. 行号清理
-    6. 多解方案处理
+    Processing phases:
+    0. Preprocessing (remove thinking blocks, XML comments, etc.)
+    1. Text normalization (Unicode, BOM, ANSI)
+    2. Structured wrapper extraction (JSON, XML)
+    3. Markdown code block extraction
+    4. Conversation noise removal
+    5. Line number cleanup
+    6. Multiple solution handling
     """
     
-    # ==================== 代码块提取模式 ====================
+    # ==================== Code block extraction patterns ====================
     
-    # Markdown 代码块模式
+    # Markdown code block patterns
     MARKDOWN_CODE_PATTERNS = [
-        # 4+ 反引号（嵌套）
+        # 4+ backticks (nested)
         r'`{4,}python3?\s*\n(.*?)`{4,}',
         r'`{4,}\s*\n(.*?)`{4,}',
-        # 标准 3 反引号
+        # Standard 3 backticks
         r'```python3?\s*\n(.*?)```',
         r'```Python\s*\n(.*?)```',
         r'```py\s*\n(.*?)```',
         r'```\s*\n(.*?)```',
-        # 波浪线
+        # Tilde
         r'~~~python3?\s*\n(.*?)~~~',
         r'~~~py\s*\n(.*?)~~~',
         r'~~~\s*\n(.*?)~~~',
     ]
     
-    # XML/HTML 标签模式
+    # XML/HTML tag patterns
     XML_CODE_PATTERNS = [
-        # 通用标签
+        # Generic tags
         r'<solution[^>]*>(.*?)</solution>',
         r'<answer[^>]*>(.*?)</answer>',
         r'<code[^>]*>(.*?)</code>',
         r'<python[^>]*>(.*?)</python>',
         r'<script[^>]*type=["\']?python["\']?[^>]*>(.*?)</script>',
         r'<pre[^>]*>(.*?)</pre>',
-        # Claude/Anthropic 格式
+        # Claude/Anthropic format
         r'<artifact[^>]*>(.*?)</artifact>',
         r'<antArtifact[^>]*>(.*?)</antArtifact>',
         r'<ant_artifact[^>]*>(.*?)</ant_artifact>',
-        # 输出/结果
+        # Output/result
         r'<output[^>]*>(.*?)</output>',
         r'<result[^>]*>(.*?)</result>',
         r'<response[^>]*>(.*?)</response>',
     ]
     
-    # 模型特定格式
+    # Model-specific formats
     MODEL_SPECIFIC_PATTERNS = [
-        # OpenAI 格式
+        # OpenAI format
         r'<\|python_start\|>(.*?)<\|python_end\|>',
         r'<\|code_start\|>(.*?)<\|code_end\|>',
         r'<\|im_start\|>assistant\s*(.*?)<\|im_end\|>',
-        # DeepSeek 格式
+        # DeepSeek format
         r'<\|code\|>(.*?)<\|/code\|>',
         r'【代码】(.*?)【/代码】',
         r'【Python】(.*?)【/Python】',
         r'【程序】(.*?)【/程序】',
-        # Llama/Mistral 格式
+        # Llama/Mistral format
         r'\[PYTHON\](.*?)\[/PYTHON\]',
         r'\[CODE\](.*?)\[/CODE\]',
         r'\[SOLUTION\](.*?)\[/SOLUTION\]',
         r'\[INST\].*?\[/INST\](.*?)(?=\[INST\]|$)',
-        # Qwen 格式
+        # Qwen format
         r'<\|code_start\|>(.*?)<\|code_end\|>',
         r'<\|assistant\|>(.*?)(?=<\||$)',
-        # Yi 格式
+        # Yi format
         r'<\|yi\|>(.*?)<\|/yi\|>',
-        # Baichuan 格式
+        # Baichuan format
         r'<reserved_\d+>(.*?)</reserved_\d+>',
-        # ChatGLM 格式
+        # ChatGLM format
         r'\[gMASK\].*?\[sMASK\](.*?)(?=\[gMASK\]|$)',
         r'<\|user\|>.*?<\|assistant\|>(.*?)(?=<\||$)',
-        # InternLM 格式
+        # InternLM format
         r'<\|action_start\|>(.*?)<\|action_end\|>',
-        # Cohere Command R 格式
+        # Cohere Command R format
         r'<\|START_OF_TURN_TOKEN\|><\|CHATBOT_TOKEN\|>(.*?)<\|END_OF_TURN_TOKEN\|>',
-        # Gemma 格式
+        # Gemma format
         r'<start_of_turn>model\s*(.*?)<end_of_turn>',
-        # Phi 格式
+        # Phi format
         r'<\|assistant\|>\s*(.*?)(?=<\||$)',
-        # 通用分隔符格式
+        # Generic delimiter format
         r'---\s*code\s*---\s*(.*?)\s*---\s*end\s*---',
         r'===\s*code\s*===\s*(.*?)\s*===\s*end\s*===',
     ]
     
-    # 思考/推理块（需移除）
+    # Thinking/reasoning blocks (to be removed)
     THINKING_BLOCK_PATTERNS = [
         r'<thinking>.*?</thinking>',
         r'<scratchpad>.*?</scratchpad>',
@@ -127,96 +127,96 @@ class CodeExtractor:
         r'<think>.*?</think>',
         r'<plan>.*?</plan>',
         r'<step_by_step>.*?</step_by_step>',
-        # DeepSeek R1 格式
+        # DeepSeek R1 format
         r'<\|begin_of_thought\|>.*?<\|end_of_thought\|>',
-        # Claude 格式
+        # Claude format
         r'<antThinking>.*?</antThinking>',
         r'<internal_response>.*?</internal_response>',
-        # 通用推理格式
+        # Generic reasoning format
         r'<reasoning_step>.*?</reasoning_step>',
         r'<inner_monologue>.*?</inner_monologue>',
         r'<work>.*?</work>',
         r'<draft>.*?</draft>',
-        # Qwen 格式
+        # Qwen format
         r'<\|think\|>.*?<\|/think\|>',
-        # 中文思考块
+        # Chinese thinking blocks
         r'【思考】.*?【/思考】',
         r'【分析】.*?【/分析】',
         r'【推理】.*?【/推理】',
     ]
     
-    # ==================== 对话噪音模式 ====================
+    # ==================== Conversation noise patterns ====================
     
-    # 英文对话噪音
+    # English conversation noise
     ENGLISH_NOISE_PATTERNS = [
-        # 介绍性语句
+        # Introductory statements
         r'^here\s+is.*$', r'^here\'s.*$',
         r'^this\s+is.*$', r'^this\s+code.*$',
         r'^this\s+function.*$', r'^this\s+solution.*$',
         r'^below\s+is.*$', r'^above\s+is.*$',
         r'^following\s+is.*$', r'^the\s+following.*$',
         r'^see\s+below.*$', r'^see\s+the.*$',
-        # 礼貌用语
+        # Politeness phrases
         r'^sure[,!].*$', r'^certainly[,!].*$',
         r'^of\s+course[,!].*$', r'^absolutely[,!].*$',
         r'^i\s+hope.*$', r'^i\s+will.*$', r'^i\'ll.*$',
         r'^let\s+me.*$', r'^i\s+have.*$',
         r'^please\s+find.*$', r'^here\s+you\s+go.*$',
         r'^as\s+requested.*$',
-        # 标签
+        # Labels
         r'^solution:.*$', r'^answer:.*$', r'^code:.*$',
         r'^python:.*$', r'^output:.*$', r'^result:.*$',
         r'^implementation:.*$', r'^explanation:.*$',
         r'^example:.*$', r'^note:.*$', r'^note\s+that.*$',
-        # 分析语句
+        # Analysis statements
         r'^the\s+function.*$', r'^the\s+code.*$', r'^the\s+solution.*$',
         r'^the\s+answer.*$', r'^my\s+solution.*$',
-        # 复杂度分析
+        # Complexity analysis
         r'^approach:.*$', r'^logic:.*$', r'^algorithm:.*$',
         r'^complexity:.*$', r'^time\s+complexity.*$', r'^space\s+complexity.*$',
         r'^o\(.*\).*$',
-        # 测试/约束
+        # Test/constraints
         r'^test\s+case.*$', r'^input:.*$', r'^inputs?:.*$',
         r'^constraints?:.*$', r'^assumptions?:.*$',
         r'^edge\s+cases?.*$', r'^corner\s+cases?.*$',
-        # 思考过程
+        # Thinking process
         r'^let\'s\s+break.*$', r'^let\'s\s+analyze.*$',
         r'^let\'s\s+think.*$', r'^let\'s\s+solve.*$',
         r'^we\s+can\s+see.*$', r'^we\s+need\s+to.*$',
         r'^we\s+should.*$', r'^we\s+have.*$',
         r'^to\s+solve\s+this.*$',
-        # 总结
+        # Summary
         r'^summary:.*$', r'^conclusion:.*$',
         r'^key\s+points?.*$', r'^important:.*$',
         r'^alternatively.*$', r'^returns?:.*$',
         r'^expected.*output.*$', r'^explanation.*$', r'^reasoning.*$',
     ]
     
-    # 中文对话噪音
+    # Chinese conversation noise
     CHINESE_NOISE_PATTERNS = [
-        # 介绍性语句
+        # Introductory statements
         r'^这是.*$', r'^以下是.*$', r'^下面是.*$',
         r'^如下.*$', r'^请看.*$', r'^这里是.*$',
         r'^代码如下.*$', r'^程序如下.*$',
-        # 标签
+        # Labels
         r'^解决方案[：:].*$', r'^答案[：:].*$',
         r'^代码[：:].*$', r'^程序[：:].*$',
         r'^输出[：:].*$', r'^结果[：:].*$',
         r'^实现[：:].*$', r'^解释[：:].*$',
         r'^说明[：:].*$', r'^注意[：:].*$',
         r'^示例[：:].*$', r'^例子[：:].*$',
-        # 思考过程
+        # Thinking process
         r'^让我.*$', r'^我来.*$', r'^我们.*$',
         r'^首先.*$', r'^然后.*$', r'^最后.*$',
         r'^接下来.*$', r'^下一步.*$',
-        # 分析
+        # Analysis
         r'^复杂度.*$', r'^时间复杂度.*$', r'^空间复杂度.*$',
         r'^算法.*$', r'^思路.*$', r'^分析.*$',
-        # 总结
+        # Summary
         r'^综上.*$', r'^总结.*$', r'^结论.*$',
     ]
     
-    # Markdown 格式噪音
+    # Markdown format noise
     MARKDOWN_NOISE_PATTERNS = [
         r'^\*\*.*\*\*$',  # **bold**
         r'^#+\s+.*$',      # # Header
@@ -226,29 +226,29 @@ class CodeExtractor:
         r'^>\s+.*$',       # > quote (be careful, might be valid code)
     ]
     
-    # 列表格式噪音
+    # List format noise
     LIST_NOISE_PATTERNS = [
         r'^\d+\.\s+[A-Z].*$',  # "1. Explanation..."
         r'^-\s+[A-Z].*$',       # "- Note that..."
         r'^\*\s+[A-Z].*$',      # "* The function..."
-        r'^•\s+.*$',            # 圆点
-        r'^→\s+.*$',            # 箭头
+        r'^•\s+.*$',            # Bullet point
+        r'^→\s+.*$',            # Arrow
         r'^✓\s+.*$', r'^✔\s+.*$', r'^✗\s+.*$',
         r'^❌\s+.*$', r'^✅\s+.*$',
         r'^Step\s+\d+.*$',      # Step 1: ...
     ]
     
-    # AI 模型前缀
+    # AI model prefixes
     AI_PREFIX_PATTERNS = [
         r'^(assistant|claude|gpt|gemini|llama|deepseek|qwen|mistral)[:\s].*$',
         r'^(ai|bot|model|system)[:\s].*$',
         r'^<\|assistant\|>.*$',
-        r'^A:\s*$',  # Q: A: 格式
+        r'^A:\s*$',  # Q: A: format
     ]
     
     def __init__(self):
-        """初始化抽取器"""
-        # 编译所有噪音模式
+        """Initialize extractor"""
+        # Compile all noise patterns
         all_noise_patterns = (
             self.ENGLISH_NOISE_PATTERNS +
             self.CHINESE_NOISE_PATTERNS +
@@ -261,7 +261,7 @@ class CodeExtractor:
             for pattern in all_noise_patterns
         ]
         
-        # 编译思考块模式
+        # Compile thinking block patterns
         self._thinking_patterns = [
             re.compile(pattern, re.DOTALL | re.IGNORECASE)
             for pattern in self.THINKING_BLOCK_PATTERNS
@@ -269,107 +269,107 @@ class CodeExtractor:
     
     def extract(self, raw_output: str) -> str:
         """
-        从 LLM 输出中提取代码
+        Extract code from LLM output
         
         Args:
-            raw_output: LLM 的原始输出
+            raw_output: LLM's raw output
             
         Returns:
-            提取并清理后的代码
+            Extracted and cleaned code
         """
         if not raw_output:
             return ""
         
         code = raw_output
         
-        # Phase 0: 预处理 - 移除思考块
+        # Phase 0: Preprocessing - Remove thinking blocks
         code = self._remove_thinking_blocks(code)
         
-        # Phase 1: 文本规范化
+        # Phase 1: Text normalization
         code = self._normalize_text(code)
         
-        # Phase 2: 尝试从 JSON 提取
+        # Phase 2: Try extracting from JSON
         json_code = self._extract_json_code(code)
         if json_code:
             code = json_code
         else:
-            # Phase 3: Markdown/XML 代码块提取
+            # Phase 3: Markdown/XML code block extraction
             code = self._extract_code_block(code)
         
-        # Phase 4: 移除对话噪音
+        # Phase 4: Remove conversation noise
         code = self._remove_conversational_noise(code)
         
-        # Phase 5: 移除行号
+        # Phase 5: Remove line numbers
         code = self._remove_line_numbers(code)
         
-        # Phase 6: 多解方案处理
+        # Phase 6: Multiple solution handling
         code = self._extract_last_solution(code)
         
-        # Phase 7: 最终清理
+        # Phase 7: Final cleanup
         code = self._final_cleanup(code)
         
         return code.strip()
     
     def _remove_thinking_blocks(self, code: str) -> str:
-        """Phase 0: 移除 LLM 思考/推理块"""
+        """Phase 0: Remove LLM thinking/reasoning blocks"""
         for pattern in self._thinking_patterns:
             code = pattern.sub('', code)
         return code
     
     def _normalize_text(self, code: str) -> str:
         """
-        Phase 1: 文本规范化
-        - Unicode NFKC 规范化
-        - BOM 移除
-        - HTML 实体解码
-        - ANSI 转义码移除
-        - 零宽字符移除
-        - 行尾规范化
+        Phase 1: Text normalization
+        - Unicode NFKC normalization
+        - BOM removal
+        - HTML entity decoding
+        - ANSI escape code removal
+        - Zero-width character removal
+        - Line ending normalization
         """
-        # Unicode 规范化
+        # Unicode normalization
         code = unicodedata.normalize('NFKC', code)
         
-        # BOM 移除
+        # BOM removal
         code = code.lstrip('\ufeff')
         
-        # HTML 实体解码
+        # HTML entity decoding
         code = html.unescape(code)
         
-        # ANSI 转义码移除
+        # ANSI escape code removal
         code = re.sub(r'\x1b\[[0-9;]*m', '', code)
         code = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', code)
         
-        # 零宽字符移除
+        # Zero-width character removal
         zero_width = '\u200b\u200c\u200d\u2060\ufeff\u00a0'
         for char in zero_width:
             code = code.replace(char, '' if char != '\u00a0' else ' ')
         
-        # 行尾规范化
+        # Line ending normalization
         code = code.replace('\r\n', '\n').replace('\r', '\n')
         
-        # 移除 XML 注释
+        # Remove XML comments
         code = re.sub(r'<!--.*?-->', '', code, flags=re.DOTALL)
         
         return code
     
     def _extract_json_code(self, code: str) -> Optional[str]:
-        """Phase 2a: 从 JSON 结构中提取代码"""
-        # 尝试完整 JSON 解析
+        """Phase 2a: Extract code from JSON structure"""
+        # Try complete JSON parsing
         try:
-            # 查找 JSON 对象
+            # Find JSON object
             json_match = re.search(r'\{[^{}]*"(?:code|solution|answer|python|program)"[^{}]*\}', code, re.DOTALL)
             if json_match:
                 obj = json.loads(json_match.group())
                 for key in ['code', 'solution', 'answer', 'python', 'program']:
                     if key in obj and isinstance(obj[key], str):
-                        # 处理转义的换行符
+                        # Handle escaped newlines
                         extracted = obj[key].replace('\\n', '\n').replace('\\t', '\t')
                         if self._looks_like_code(extracted):
                             return extracted
         except (json.JSONDecodeError, ValueError):
             pass
         
-        # 正则提取（处理不完整的 JSON）
+        # Regex extraction (handle incomplete JSON)
         json_patterns = [
             r'"code"\s*:\s*"((?:[^"\\]|\\.)*)"',
             r'"solution"\s*:\s*"((?:[^"\\]|\\.)*)"',
@@ -384,7 +384,7 @@ class CodeExtractor:
             match = re.search(pattern, code, re.DOTALL)
             if match:
                 extracted = match.group(1)
-                # 处理转义
+                # Handle escapes
                 extracted = extracted.replace('\\n', '\n').replace('\\t', '\t')
                 extracted = extracted.replace('\\"', '"').replace("\\'", "'")
                 extracted = extracted.replace('\\\\', '\\')
@@ -394,67 +394,67 @@ class CodeExtractor:
         return None
     
     def _extract_code_block(self, code: str) -> str:
-        """Phase 2b/3: 提取代码块（Markdown, XML, 模型特定格式）"""
+        """Phase 2b/3: Extract code blocks (Markdown, XML, model-specific formats)"""
         all_matches: List[Tuple[int, str]] = []
         
-        # 1. 尝试模型特定格式
+        # 1. Try model-specific formats
         for pattern in self.MODEL_SPECIFIC_PATTERNS:
             for match in re.finditer(pattern, code, re.DOTALL | re.IGNORECASE):
                 extracted = match.group(1).strip()
                 if extracted and self._looks_like_code(extracted):
                     all_matches.append((match.start(), extracted))
         
-        # 2. 尝试 XML 标签
+        # 2. Try XML tags
         for pattern in self.XML_CODE_PATTERNS:
             for match in re.finditer(pattern, code, re.DOTALL | re.IGNORECASE):
                 extracted = match.group(1).strip()
                 if extracted and self._looks_like_code(extracted):
                     all_matches.append((match.start(), extracted))
         
-        # 3. 尝试 Markdown 代码块
+        # 3. Try Markdown code blocks
         for pattern in self.MARKDOWN_CODE_PATTERNS:
             for match in re.finditer(pattern, code, re.DOTALL | re.IGNORECASE):
                 extracted = match.group(1).strip()
                 if extracted and self._looks_like_code(extracted):
                     all_matches.append((match.start(), extracted))
         
-        # 如果有匹配，取最后一个（通常是最终版本）
+        # If matches found, take the last one (usually the final version)
         if all_matches:
             all_matches.sort(key=lambda x: x[0])
             return all_matches[-1][1]
         
-        # 4. 没有找到代码块，清理残留标记
+        # 4. No code block found, clean up remaining markers
         code = self._cleanup_remaining_markers(code)
         
         return code
     
     def _cleanup_remaining_markers(self, code: str) -> str:
-        """清理残留的代码块标记"""
-        # Markdown 代码块标记
+        """Clean up remaining code block markers"""
+        # Markdown code block markers
         code = re.sub(r'^```\w*\s*$', '', code, flags=re.MULTILINE)
         code = re.sub(r'^```\s*$', '', code, flags=re.MULTILINE)
         code = re.sub(r'^~~~\w*\s*$', '', code, flags=re.MULTILINE)
         code = re.sub(r'^~~~\s*$', '', code, flags=re.MULTILINE)
         
-        # 行开头/结尾反引号
+        # Backticks at line beginning/end
         code = re.sub(r'^`+\w*\s*$', '', code, flags=re.MULTILINE)
         code = re.sub(r'^`+(?!`)(.)', r'\1', code, flags=re.MULTILINE)
         code = re.sub(r'`+$', '', code, flags=re.MULTILINE)
         
-        # 行内代码反引号
+        # Inline code backticks
         code = re.sub(r'`([^`\n]+)`', r'\1', code)
         
-        # 加粗/斜体（小心不要破坏 Python 的 *args, **kwargs）
+        # Bold/italic (be careful not to break Python's *args, **kwargs)
         code = re.sub(r'(?<!\*)\*\*([^*\n]+)\*\*(?!\*)', r'\1', code)
         code = re.sub(r'(?<!_)__([^_\n]+)__(?!_)', r'\1', code)
         
-        # XML 残留标签
+        # Remaining XML tags
         code = re.sub(r'</?(?:solution|answer|code|python|output|result)[^>]*>', '', code, flags=re.IGNORECASE)
         
         return code
     
     def _remove_conversational_noise(self, code: str) -> str:
-        """Phase 4: 移除对话噪音"""
+        """Phase 4: Remove conversation noise"""
         lines = code.split('\n')
         cleaned_lines = []
         skip_until_code = False
@@ -463,22 +463,22 @@ class CodeExtractor:
         for line in lines:
             stripped = line.strip()
             
-            # 跳过开头的空行
+            # Skip leading empty lines
             if not cleaned_lines and not stripped:
                 continue
             
-            # 检测是否进入代码区域
+            # Detect if entering code region
             if self._is_code_line(line):
                 in_code_section = True
                 skip_until_code = False
             
-            # 检测 Output/Example 等非代码部分
+            # Detect Output/Example and other non-code sections
             if re.match(r'^(output|example|sample|test|result|expected|input)s?\s*[:=]', stripped, re.IGNORECASE):
                 skip_until_code = True
                 in_code_section = False
                 continue
             
-            # 如果在跳过区域，检查是否遇到新代码
+            # If in skip region, check if new code encountered
             if skip_until_code:
                 if self._is_code_line(line):
                     skip_until_code = False
@@ -486,7 +486,7 @@ class CodeExtractor:
                 else:
                     continue
             
-            # 对于非代码行，检查是否是噪音
+            # For non-code lines, check if it's noise
             if not in_code_section or not self._is_code_line(line):
                 is_noise = False
                 for pattern in self._noise_patterns:
@@ -499,10 +499,10 @@ class CodeExtractor:
             
             cleaned_lines.append(line)
         
-        # 修剪尾部噪音行
+        # Trim trailing noise lines
         while cleaned_lines and not self._is_code_line(cleaned_lines[-1]):
             last_line = cleaned_lines[-1].strip()
-            # 保留空行和可能的有效代码
+            # Keep empty lines and possible valid code
             if not last_line:
                 cleaned_lines.pop()
             elif self._is_noise_line(last_line):
@@ -513,11 +513,11 @@ class CodeExtractor:
         return '\n'.join(cleaned_lines)
     
     def _remove_line_numbers(self, code: str) -> str:
-        """Phase 5: 移除代码行号"""
+        """Phase 5: Remove code line numbers"""
         lines = code.split('\n')
         cleaned_lines = []
         
-        # 检测是否有行号格式
+        # Detect if line number format exists
         line_number_patterns = [
             (r'^\s*(\d+)[:\.\|]\s*', 'colon'),      # "1: ", "01. ", "1| "
             (r'^\s*(\d+)\s{2,}', 'spaces'),          # "1   code"
@@ -525,17 +525,17 @@ class CodeExtractor:
             (r'^\s*Line\s+(\d+):\s*', 'line_word'),  # "Line 1: code"
         ]
         
-        # 检测主要格式
+        # Detect main format
         detected_format = None
         line_count = 0
-        for line in lines[:20]:  # 检查前20行
+        for line in lines[:20]:  # Check first 20 lines
             for pattern, fmt in line_number_patterns:
                 if re.match(pattern, line, re.IGNORECASE):
                     detected_format = fmt
                     line_count += 1
                     break
         
-        # 如果检测到显著的行号格式（至少3行匹配）
+        # If significant line number format detected (at least 3 lines match)
         if detected_format and line_count >= 3:
             for line in lines:
                 for pattern, fmt in line_number_patterns:
@@ -548,45 +548,45 @@ class CodeExtractor:
         return code
     
     def _extract_last_solution(self, code: str, function_name: str = "solve") -> str:
-        """Phase 6: 如果有多个 def solve，提取最后一个完整的"""
+        """Phase 6: If there are multiple def solve, extract the last complete one"""
         pattern = rf'^def\s+{function_name}\s*\('
         matches = list(re.finditer(pattern, code, re.MULTILINE))
         
         if len(matches) <= 1:
             return code
         
-        # 取最后一个
+        # Take the last one
         last_match = matches[-1]
         code = code[last_match.start():]
         
-        logger.debug(f"提取最后一个 {function_name} 函数（共 {len(matches)} 个）")
+        logger.debug(f"Extracted last {function_name} function (total {len(matches)})")
         
         return code
     
     def _final_cleanup(self, code: str) -> str:
-        """Phase 7: 最终清理"""
-        # 移除多余空行（保留最多2个连续空行）
+        """Phase 7: Final cleanup"""
+        # Remove excess blank lines (keep at most 2 consecutive)
         code = re.sub(r'\n{4,}', '\n\n\n', code)
         
-        # 移除尾部空白
+        # Remove trailing whitespace
         lines = [line.rstrip() for line in code.split('\n')]
         
-        # 移除开头的空行
+        # Remove leading empty lines
         while lines and not lines[0]:
             lines.pop(0)
         
-        # 移除结尾的空行
+        # Remove trailing empty lines
         while lines and not lines[-1]:
             lines.pop()
         
         return '\n'.join(lines)
     
     def _looks_like_code(self, text: str) -> bool:
-        """检测文本是否看起来像代码"""
+        """Detect if text looks like code"""
         if not text or len(text.strip()) < 5:
             return False
         
-        # Python 代码特征
+        # Python code characteristics
         code_indicators = [
             r'\bdef\s+\w+\s*\(',
             r'\bclass\s+\w+',
@@ -609,12 +609,12 @@ class CodeExtractor:
         return False
     
     def _is_code_line(self, line: str) -> bool:
-        """检测单行是否是代码行"""
+        """Detect if single line is a code line"""
         stripped = line.strip()
         if not stripped:
             return False
         
-        # 代码行特征
+        # Code line characteristics
         code_starts = [
             'def ', 'class ', 'import ', 'from ', 'return ',
             'if ', 'elif ', 'else:', 'for ', 'while ', 'try:',
@@ -628,42 +628,42 @@ class CodeExtractor:
             if stripped.startswith(start):
                 return True
         
-        # 缩进行（函数体）
+        # Indented lines (function body)
         if line.startswith('    ') or line.startswith('\t'):
             return True
         
-        # 赋值语句
+        # Assignment statements
         if re.match(r'^[a-z_][a-z0-9_]*\s*[+\-*/%]?=', stripped, re.IGNORECASE):
             return True
         
-        # 函数调用
+        # Function calls
         if re.match(r'^[a-z_][a-z0-9_.]*\s*\(', stripped, re.IGNORECASE):
             return True
         
-        # 注释
+        # Comments
         if stripped.startswith('#'):
             return True
         
         return False
     
     def _is_noise_line(self, line: str) -> bool:
-        """检测是否是噪音行"""
+        """Detect if line is a noise line"""
         for pattern in self._noise_patterns:
             if pattern.match(line):
                 return True
         return False
     
-    # ==================== 辅助方法 ====================
+    # ==================== Helper methods ====================
     
     def extract_all_code_blocks(self, raw_output: str) -> List[str]:
         """
-        提取所有代码块（用于分析或比较）
+        Extract all code blocks (for analysis or comparison)
         
         Args:
-            raw_output: LLM 原始输出
+            raw_output: LLM raw output
             
         Returns:
-            所有代码块的列表
+            List of all code blocks
         """
         code = self._normalize_text(raw_output)
         code = self._remove_thinking_blocks(code)
@@ -685,13 +685,13 @@ class CodeExtractor:
     
     def detect_code_style(self, code: str) -> str:
         """
-        检测代码风格
+        Detect code style
         
         Returns:
-            'function': 函数定义风格 (def solve(...))
-            'stdin_stdout': 脚本风格 (input/print)
-            'mixed': 混合风格
-            'unknown': 无法确定
+            'function': Function definition style (def solve(...))
+            'stdin_stdout': Script style (input/print)
+            'mixed': Mixed style
+            'unknown': Cannot determine
         """
         has_function = bool(re.search(r'\bdef\s+\w+\s*\(', code))
         has_input = bool(re.search(r'\binput\s*\(', code))

@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const CONFIG_DIR = __dirname;
 
 
-// 深度合并对象
+// Deep merge objects
 function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
     const result = { ...target };
 
@@ -36,7 +36,7 @@ function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>)
     return result;
 }
 
-// 加载 YAML 文件
+// Load YAML file
 function loadYaml(filePath: string): Record<string, any> {
     try {
         const content = fs.readFileSync(filePath, 'utf-8');
@@ -47,19 +47,19 @@ function loadYaml(filePath: string): Record<string, any> {
     }
 }
 
-// 加载默认配置
+// Load default config
 export function loadDefaults(): Partial<Config> {
     const defaultsPath = path.join(CONFIG_DIR, 'defaults.yaml');
     return loadYaml(defaultsPath);
 }
 
-// 加载 Profile 配置
+// Load profile config
 export function loadProfile(profileName: string): Partial<Config> {
     const profilePath = path.join(CONFIG_DIR, 'profiles', `${profileName}.yaml`);
     return loadYaml(profilePath);
 }
 
-// 合并三层配置: defaults < profile < runOverride
+// Merge three-layer config: defaults < profile < runOverride
 export function resolveConfig(
     profileName: string = 'single_gpu',
     runOverride: Partial<Config> = {}
@@ -67,14 +67,14 @@ export function resolveConfig(
     const defaults = loadDefaults();
     const profile = loadProfile(profileName);
 
-    // 三层合并
+    // Three-layer merge
     const merged = deepMerge(deepMerge(defaults, profile), runOverride);
 
-    // 验证并返回
+    // Validate and return
     return ConfigSchema.parse(merged);
 }
 
-// 全局配置实例
+// Global config instance
 let globalConfig: Config | null = null;
 
 export function getConfig(): Config {

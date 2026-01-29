@@ -2,14 +2,14 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-    // 查询 run 状态
+    // Query run status
     const run = await prisma.run.findUnique({
         where: { id: 'run_12949' },
         select: { id: true, status: true, duration: true, metricsJson: true, gpuHours: true, totalSteps: true }
     });
     console.log('Run status:', JSON.stringify(run, null, 2));
 
-    // 查询 LoRA 统计信息
+    // Query LoRA statistics
     const loraStats = await prisma.loraStats.findUnique({
         where: { runId: 'run_12949' }
     });

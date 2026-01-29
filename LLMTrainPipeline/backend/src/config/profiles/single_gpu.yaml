@@ -1,4 +1,4 @@
-# 单 GPU 配置
+# Single GPU configuration
 providers:
   compute: "local_single"
 

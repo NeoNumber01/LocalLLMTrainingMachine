@@ -1,6 +1,6 @@
 """
-代码验证模块
-AST 解析、编译检查、危险代码检测
+Code Validation Module
+AST parsing, compilation check, dangerous code detection
 """
 
 import ast
@@ -18,16 +18,16 @@ logger = logging.getLogger(__name__)
 
 class CodeValidator:
     """
-    代码验证器
+    Code Validator
     
-    功能：
-    1. AST 语法检查
-    2. py_compile 编译门禁
-    3. 危险代码检测
-    4. 接口合规检查
+    Features:
+    1. AST syntax check
+    2. py_compile compilation gate
+    3. Dangerous code detection
+    4. Interface compliance check
     """
     
-    # 默认危险模式
+    # Default dangerous patterns
     DEFAULT_DANGEROUS_PATTERNS = [
         r'\beval\s*\(',
         r'\bexec\s*\(',
@@ -48,41 +48,41 @@ class CodeValidator:
     
     def __init__(self, dangerous_patterns: Optional[List[str]] = None):
         """
-        初始化验证器
+        Initialize validator
         
         Args:
-            dangerous_patterns: 危险代码模式列表
+            dangerous_patterns: List of dangerous code patterns
         """
         patterns = dangerous_patterns or self.DEFAULT_DANGEROUS_PATTERNS
         self._dangerous_patterns = [re.compile(p) for p in patterns]
     
     def validate(self, code: str, function_name: str = "solve") -> Tuple[bool, Optional[ErrorType], Optional[str]]:
         """
-        完整验证代码
+        Complete code validation
         
         Args:
-            code: 待验证代码
-            function_name: 期望的函数名
+            code: Code to validate
+            function_name: Expected function name
             
         Returns:
-            (是否通过, 错误类型, 错误消息)
+            (passed, error_type, error_message)
         """
-        # 1. AST 语法检查
+        # 1. AST syntax check
         valid, error_type, error_msg = self.check_syntax(code)
         if not valid:
             return False, error_type, error_msg
         
-        # 2. 编译检查
+        # 2. Compilation check
         valid, error_type, error_msg = self.check_compile(code)
         if not valid:
             return False, error_type, error_msg
         
-        # 3. 危险代码检测
+        # 3. Dangerous code detection
         valid, error_type, error_msg = self.check_dangerous(code)
         if not valid:
             return False, error_type, error_msg
         
-        # 4. 接口检查
+        # 4. Interface check
         valid, error_type, error_msg = self.check_interface(code, function_name)
         if not valid:
             return False, error_type, error_msg
@@ -91,7 +91,7 @@ class CodeValidator:
     
     def check_syntax(self, code: str) -> Tuple[bool, Optional[ErrorType], Optional[str]]:
         """
-        AST 语法检查
+        AST syntax check
         """
         try:
             ast.parse(code)
@@ -106,7 +106,7 @@ class CodeValidator:
     
     def check_compile(self, code: str) -> Tuple[bool, Optional[ErrorType], Optional[str]]:
         """
-        py_compile 编译检查
+        py_compile compilation check
         """
         try:
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
@@ -126,37 +126,37 @@ class CodeValidator:
     
     def check_dangerous(self, code: str) -> Tuple[bool, Optional[ErrorType], Optional[str]]:
         """
-        危险代码检测
+        Dangerous code detection
         """
         for pattern in self._dangerous_patterns:
             match = pattern.search(code)
             if match:
-                return False, ErrorType.DANGEROUS_CODE, f"检测到危险代码: {match.group()}"
+                return False, ErrorType.DANGEROUS_CODE, f"Dangerous code detected: {match.group()}"
         return True, None, None
     
     def check_interface(self, code: str, function_name: str = "solve") -> Tuple[bool, Optional[ErrorType], Optional[str]]:
         """
-        检查函数接口是否存在
+        Check if function interface exists
         """
         try:
             tree = ast.parse(code)
             for node in ast.walk(tree):
                 if isinstance(node, ast.FunctionDef) and node.name == function_name:
                     return True, None, None
-            return False, ErrorType.INTERFACE_ERROR, f"未找到函数 {function_name}"
+            return False, ErrorType.INTERFACE_ERROR, f"Function {function_name} not found"
         except SyntaxError:
-            # 语法错误已在前面检查，这里只关注接口
+            # Syntax error already checked before, only focus on interface here
             pattern = rf'def\s+{function_name}\s*\('
             if re.search(pattern, code):
                 return True, None, None
-            return False, ErrorType.INTERFACE_ERROR, f"未找到函数 {function_name}"
+            return False, ErrorType.INTERFACE_ERROR, f"Function {function_name} not found"
     
     def get_syntax_error_info(self, code: str) -> Optional[dict]:
         """
-        获取语法错误详细信息
+        Get syntax error details
         
         Returns:
-            包含 lineno, offset, msg, text 的字典
+            Dictionary containing lineno, offset, msg, text
         """
         try:
             ast.parse(code)
@@ -171,21 +171,21 @@ class CodeValidator:
     
     def analyze_code_quality(self, code: str) -> dict:
         """
-        分析代码质量
+        Analyze code quality
         """
         lines = code.split('\n')
         
-        # 检查是否有额外 I/O
+        # Check if there is extra I/O
         has_print = bool(re.search(r'\bprint\s*\(', code))
         has_input = bool(re.search(r'\binput\s*\(', code))
         
-        # 检查函数定义
+        # Check function definition
         has_function = bool(re.search(r'\bdef\s+\w+\s*\(', code))
         
-        # 检查调试语句
+        # Check debug statements
         has_debug = bool(re.search(r'#\s*debug|print\s*\(\s*["\']debug', code, re.IGNORECASE))
         
-        # 统计
+        # Statistics
         return {
             "code_length": len(code),
             "line_count": len(lines),

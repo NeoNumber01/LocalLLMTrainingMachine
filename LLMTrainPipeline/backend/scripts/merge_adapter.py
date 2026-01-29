@@ -25,7 +25,7 @@ def main():
     
     args = parser.parse_args()
     
-    # 输出状态给调用者
+    # Output status for caller
     def log_status(status, message, progress=None):
         output = {"status": status, "message": message}
         if progress is not None:
@@ -41,7 +41,7 @@ def main():
         
         log_status("running", f"Loading base model from {args.base_model}...", 10)
         
-        # 准备加载配置
+        # Prepare loading configuration
         model_kwargs = {
             "trust_remote_code": True,
             "torch_dtype": torch.float16,
@@ -49,7 +49,7 @@ def main():
             "low_cpu_mem_usage": True,
         }
         
-        # 如果使用量化，设置配置（但合并时推荐不使用量化）
+        # If using quantization, set configuration (but recommend not using quantization when merging)
         if args.quantization == '4bit':
             log_status("running", "Using 4-bit quantization for loading...", 12)
             model_kwargs["quantization_config"] = BitsAndBytesConfig(
@@ -61,7 +61,7 @@ def main():
             log_status("running", "Using 8-bit quantization for loading...", 12)
             model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
         
-        # 加载基础模型
+        # Load base model
         model = AutoModelForCausalLM.from_pretrained(args.base_model, **model_kwargs)
         
         log_status("running", "Loading tokenizer...", 30)
@@ -72,21 +72,21 @@ def main():
         
         log_status("running", "Merging adapter into base model...", 50)
         
-        # 执行合并
+        # Perform merge
         model = model.merge_and_unload()
         
         log_status("running", f"Saving merged model to {args.output}...", 70)
         
-        # 确保输出目录存在
+        # Ensure output directory exists
         os.makedirs(args.output, exist_ok=True)
         
-        # 保存合并后的模型
+        # Save merged model
         model.save_pretrained(args.output, safe_serialization=True)
         tokenizer.save_pretrained(args.output)
         
         log_status("running", "Cleaning up...", 95)
         
-        # 清理内存
+        # Clean up memory
         del model
         gc.collect()
         if torch.cuda.is_available():

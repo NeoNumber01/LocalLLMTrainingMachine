@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 
-// 路由导入
+// Route imports
 import { dashboardRoutes } from './routes/dashboard.js';
 import { runsRoutes } from './routes/runs.js';
 import { modelsRoutes } from './routes/models.js';
@@ -18,7 +18,7 @@ import { searchRoutes } from './routes/search.js';
 import { filesRoutes } from './routes/files.js';
 import { notificationsRoutes } from './routes/notifications.js';
 
-// 安全守护
+// Safety guards
 import { validateAdaptersOnStartup } from './services/adapter-guard.js';
 import { restoreQueue } from './services/run-executor.js';
 
@@ -41,29 +41,29 @@ async function main() {
         credentials: true,
     });
 
-    // Swagger 文档
+    // Swagger documentation
     await fastify.register(swagger, {
         openapi: {
             info: {
                 title: 'Nexus AI Backend API',
-                description: 'LLM 训练流水线后端 API',
+                description: 'LLM Training Pipeline Backend API',
                 version: '1.0.0',
             },
             servers: [{ url: `http://localhost:${PORT}` }],
             tags: [
-                { name: 'Dashboard', description: '仪表盘' },
-                { name: 'Runs', description: '训练运行' },
-                { name: 'Models', description: '模型管理' },
-                { name: 'Datasets', description: '数据集管理' },
-                { name: 'Adapters', description: '适配器管理' },
-                { name: 'Compare', description: '运行对比' },
-                { name: 'Reports', description: '报告' },
-                { name: 'Settings', description: '设置' },
-                { name: 'Config', description: '配置' },
-                { name: 'Playground', description: '推理测试' },
-                { name: 'Search', description: '全局搜索' },
-                { name: 'Files', description: '文件浏览' },
-                { name: 'Notifications', description: '通知' },
+                { name: 'Dashboard', description: 'Dashboard' },
+                { name: 'Runs', description: 'Training Runs' },
+                { name: 'Models', description: 'Model Management' },
+                { name: 'Datasets', description: 'Dataset Management' },
+                { name: 'Adapters', description: 'Adapter Management' },
+                { name: 'Compare', description: 'Run Comparison' },
+                { name: 'Reports', description: 'Reports' },
+                { name: 'Settings', description: 'Settings' },
+                { name: 'Config', description: 'Configuration' },
+                { name: 'Playground', description: 'Inference Testing' },
+                { name: 'Search', description: 'Global Search' },
+                { name: 'Files', description: 'File Browser' },
+                { name: 'Notifications', description: 'Notifications' },
             ],
         },
     });
@@ -76,12 +76,12 @@ async function main() {
         },
     });
 
-    // 健康检查
+    // Health check
     fastify.get('/health', async () => {
         return { status: 'ok', timestamp: new Date().toISOString() };
     });
 
-    // 注册 API 路由
+    // Register API routes
     await fastify.register(dashboardRoutes, { prefix: '/api/dashboard' });
     await fastify.register(runsRoutes, { prefix: '/api/runs' });
     await fastify.register(modelsRoutes, { prefix: '/api/models' });
@@ -96,21 +96,21 @@ async function main() {
     await fastify.register(filesRoutes, { prefix: '/api/files' });
     await fastify.register(notificationsRoutes, { prefix: '/api/notifications' });
 
-    // 启动服务器
+    // Start server
     try {
         await fastify.listen({ port: PORT, host: HOST });
         console.log(`
-🚀 Nexus AI Backend 已启动
+🚀 Nexus AI Backend Started
    
    API: http://localhost:${PORT}/api
    Swagger: http://localhost:${PORT}/docs
    Health: http://localhost:${PORT}/health
     `);
 
-        // P0-SAFETY: 启动时验证所有 adapters
+        // P0-SAFETY: Validate all adapters on startup
         await validateAdaptersOnStartup();
 
-        // P0-SAFETY: 恢复队列状态 (重启后恢复排队任务)
+        // P0-SAFETY: Restore queue state (resume queued tasks after restart)
         await restoreQueue();
     } catch (err) {
         fastify.log.error(err);

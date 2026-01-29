@@ -23,14 +23,14 @@ const DEFAULT_SETTINGS: SettingsResponse = {
 
 export async function settingsRoutes(fastify: FastifyInstance) {
 
-    // GET /api/settings - 获取设置
+    // GET /api/settings - Get settings
     fastify.get('/', {
         schema: {
             tags: ['Settings'],
-            summary: '获取设置',
+            summary: 'Get settings',
         },
     }, async (request, reply) => {
-        // 尝试从数据库加载设置
+        // Try to load settings from database
         const settings: Record<string, any> = {};
 
         const dbSettings = await prisma.setting.findMany();
@@ -38,7 +38,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
             settings[s.key] = JSON.parse(s.valueJson);
         }
 
-        // 合并默认设置
+        // Merge with default settings
         return {
             watchFolders: settings.watchFolders || DEFAULT_SETTINGS.watchFolders,
             compute: settings.compute || DEFAULT_SETTINGS.compute,
@@ -47,11 +47,11 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         };
     });
 
-    // PUT /api/settings - 更新设置
+    // PUT /api/settings - Update settings
     fastify.put('/', {
         schema: {
             tags: ['Settings'],
-            summary: '更新设置',
+            summary: 'Update settings',
             body: {
                 type: 'object',
                 properties: {
@@ -89,7 +89,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         const updates = request.body as UpdateSettingsDto;
 
-        // 更新各个设置项
+        // Update each setting item
         for (const [key, value] of Object.entries(updates)) {
             if (value !== undefined) {
                 await prisma.setting.upsert({

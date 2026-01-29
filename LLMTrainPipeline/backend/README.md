@@ -1,57 +1,57 @@
 # Nexus AI Backend
 
-LLM 训练流水线后端服务，基于 Node.js + TypeScript + Fastify + Prisma + SQLite。
+LLM training pipeline backend service, built with Node.js + TypeScript + Fastify + Prisma + SQLite.
 
-## 快速开始
+## Quick Start
 
-### 1. 安装依赖
+### 1. Install Dependencies
 
 ```bash
 cd backend
 npm install
 ```
 
-### 2. 初始化数据库
+### 2. Initialize Database
 
 ```bash
-# 生成 Prisma Client
+# Generate Prisma Client
 npm run db:generate
 
-# 执行数据库迁移
+# Execute database migration
 npm run db:push
 
-# 插入种子数据
+# Insert seed data
 npm run db:seed
 ```
 
-### 3. 启动开发服务器
+### 3. Start Development Server
 
 ```bash
 npm run dev
 ```
 
-服务将在 `http://localhost:3001` 启动。
+The service will start at `http://localhost:3001`.
 
-### 4. 查看 API 文档
+### 4. View API Documentation
 
-访问 `http://localhost:3001/docs` 查看 Swagger 文档。
+Visit `http://localhost:3001/docs` to view Swagger documentation.
 
-## 配置系统
+## Configuration System
 
-配置采用三层合并策略：
+Configuration uses a three-layer merge strategy:
 
-1. `src/config/defaults.yaml` - 默认配置
-2. `src/config/profiles/*.yaml` - 计算配置文件
-3. Run 创建时的 `config` 参数 - 运行时覆盖
+1. `src/config/defaults.yaml` - Default configuration
+2. `src/config/profiles/*.yaml` - Compute configuration profiles
+3. `config` parameter when creating Run - Runtime override
 
-获取合并后配置：
+Get merged configuration:
 ```bash
 GET /api/config/resolved?runId=xxx
 ```
 
-## Provider 切换
+## Provider Switching
 
-修改 `src/config/defaults.yaml` 中的 `providers` 配置即可切换实现：
+Modify the `providers` configuration in `src/config/defaults.yaml` to switch implementations:
 
 ```yaml
 providers:
@@ -62,32 +62,32 @@ providers:
   cache: "memory_ttl"          # memory_ttl | sqlite_cache
 ```
 
-## 前端对接
+## Frontend Integration
 
-1. 在前端项目添加环境变量：
+1. Add environment variable in frontend project:
    ```
    VITE_API_BASE_URL=http://localhost:3001/api
    ```
 
-2. 替换 mockData 导入为 API 调用
+2. Replace mockData imports with API calls
 
-3. SSE 日志流连接：
+3. SSE log stream connection:
    ```javascript
    const eventSource = new EventSource('/api/runs/:id/logs/stream');
    ```
 
-## 目录结构
+## Directory Structure
 
 ```
 backend/
 ├── src/
-│   ├── config/          # 配置系统
-│   ├── db/              # 数据库 (Prisma)
-│   ├── providers/       # Provider 接口与实现
-│   ├── routes/          # API 路由
-│   ├── services/        # 业务逻辑
-│   ├── types/           # 类型定义
-│   └── index.ts         # 入口
-├── storage/             # 本地存储目录
+│   ├── config/          # Configuration system
+│   ├── db/              # Database (Prisma)
+│   ├── providers/       # Provider interfaces and implementations
+│   ├── routes/          # API routes
+│   ├── services/        # Business logic
+│   ├── types/           # Type definitions
+│   └── index.ts         # Entry point
+├── storage/             # Local storage directory
 └── package.json
 ```

@@ -27,20 +27,20 @@ export class FileScanner implements Scanner {
                 const modelPath = path.join(directory, entry.name);
                 scannedPaths.add(modelPath);
 
-                // 检查是否是有效的模型目录（包含 config.json 或 *.safetensors）
+                // Check if it's a valid model directory (contains config.json or *.safetensors)
                 const files = fs.readdirSync(modelPath);
                 const hasConfig = files.some(f => f === 'config.json');
                 const hasWeights = files.some(f => f.endsWith('.safetensors') || f.endsWith('.bin'));
 
                 if (!hasConfig && !hasWeights) {
-                    continue; // 不是有效的模型目录
+                    continue; // Not a valid model directory
                 }
 
                 const stats = fs.statSync(modelPath);
                 const existing = existingModels.find(m => m.path === modelPath);
 
                 if (existing) {
-                    // 更新现有记录
+                    // Update existing record
                     await prisma.model.update({
                         where: { id: existing.id },
                         data: {
@@ -50,7 +50,7 @@ export class FileScanner implements Scanner {
                     });
                     result.updated++;
                 } else {
-                    // 创建新记录
+                    // Create new record
                     await prisma.model.create({
                         data: {
                             name: entry.name,
@@ -66,7 +66,7 @@ export class FileScanner implements Scanner {
                 }
             }
 
-            // 标记不存在的模型为 error
+            // Mark non-existing models as error
             for (const existing of existingModels) {
                 if (!scannedPaths.has(existing.path)) {
                     await prisma.model.update({
@@ -87,7 +87,7 @@ export class FileScanner implements Scanner {
         const result: ScanResult = { added: 0, updated: 0, removed: 0, errors: [] };
 
         if (!fs.existsSync(directory)) {
-            // 目录不存在时创建它而不是报错
+            // Create directory if it doesn't exist instead of reporting error
             try {
                 fs.mkdirSync(directory, { recursive: true });
             } catch (e) {
@@ -115,7 +115,7 @@ export class FileScanner implements Scanner {
                 const format = file.endsWith('.parquet') ? 'Parquet' : 'JSONL';
                 const size = this.formatSize(stats.size);
 
-                // 尝试计算样本数量（仅针对 JSONL）
+                // Try to count samples (JSONL only)
                 let samples = 0;
                 if (format === 'JSONL') {
                     try {
@@ -155,10 +155,10 @@ export class FileScanner implements Scanner {
                 }
             }
 
-            // 标记不存在的数据集
+            // Mark non-existing datasets
             for (const existing of existingDatasets) {
                 if (!scannedPaths.has(existing.path)) {
-                    // 检查文件是否确实不存在
+                    // Check if file actually doesn't exist
                     if (!fs.existsSync(existing.path)) {
                         await prisma.dataset.update({
                             where: { id: existing.id },
@@ -195,7 +195,7 @@ export class FileScanner implements Scanner {
                 const adapterPath = path.join(directory, entry.name);
                 scannedPaths.add(adapterPath);
 
-                // 检查是否包含 adapter_config.json 或 adapter_model.bin
+                // Check if contains adapter_config.json or adapter_model.bin
                 const files = fs.readdirSync(adapterPath);
                 const hasAdapterConfig = files.some(f => f === 'adapter_config.json');
 
@@ -225,7 +225,7 @@ export class FileScanner implements Scanner {
                 }
             }
 
-            // 标记不存在的适配器
+            // Mark non-existing adapters
             for (const existing of existingAdapters) {
                 if (existing.path && !scannedPaths.has(existing.path)) {
                     await prisma.adapter.update({

@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Experiment Logger - 收集实验元信息用于学术论文
+Experiment Logger - Collect experiment metadata for academic papers
 
-功能:
-- 收集环境版本信息 (Python/PyTorch/TRL/PEFT/CUDA等)
-- 收集硬件信息 (GPU型号/显存/CPU/RAM)
-- 收集LoRA训练统计 (可训练参数量/占比)
-- 收集数据集元信息
-- 输出JSON格式日志供后端存储
+Features:
+- Collect environment version info (Python/PyTorch/TRL/PEFT/CUDA etc.)
+- Collect hardware info (GPU model/VRAM/CPU/RAM)
+- Collect LoRA training statistics (trainable params count/percentage)
+- Collect dataset metadata
+- Output JSON format log for backend storage
 
 Usage:
     from experiment_logger import ExperimentLogger
     
     logger = ExperimentLogger()
     exp_log = logger.create_log(run_id="run_001", seed=42)
-    # ... 训练过程 ...
+    # ... training process ...
     exp_log = logger.finalize(exp_log, total_steps=1000, total_tokens=512000, training_time_seconds=3600)
     logger.save_to_file(exp_log, "output/experiment_log.json")
 """
@@ -38,7 +38,7 @@ logger = logging.getLogger("ExperimentLogger")
 
 @dataclass
 class EnvironmentInfo:
-    """环境版本信息"""
+    """Environment version info"""
     os_version: str
     python_version: str
     pytorch_version: str
@@ -52,7 +52,7 @@ class EnvironmentInfo:
 
 @dataclass
 class HardwareInfo:
-    """硬件信息"""
+    """Hardware info"""
     gpu_model: str
     gpu_memory_gb: float
     cpu_model: str
@@ -61,7 +61,7 @@ class HardwareInfo:
 
 @dataclass
 class LoraTrainStats:
-    """LoRA训练统计"""
+    """LoRA training statistics"""
     rank: int
     alpha: int
     dropout: float
@@ -73,10 +73,10 @@ class LoraTrainStats:
 
 @dataclass
 class DatasetInfo:
-    """数据集元信息"""
+    """Dataset metadata"""
     source: str
     train_samples: int
-    total_samples: Optional[int] = None  # P0-1: 总样本数 (= train + val + test 或 = train)
+    total_samples: Optional[int] = None  # P0-1: Total sample count (= train + val + test or = train)
     val_samples: Optional[int] = None
     test_samples: Optional[int] = None
     total_problems: Optional[int] = None
@@ -92,7 +92,7 @@ class DatasetInfo:
 
 @dataclass
 class TrainingConfig:
-    """训练配置记录 - 论文级完整超参数"""
+    """Training config record - Paper-level complete hyperparameters"""
     batch_size: int
     gradient_accumulation_steps: int
     effective_batch_size: int
@@ -105,7 +105,7 @@ class TrainingConfig:
     weight_decay: float
     max_grad_norm: Optional[float] = None
     precision: str = "fp16"
-    # 新增：论文级别完整记录
+    # New: Paper-level complete record
     save_steps: Optional[int] = None
     gradient_checkpointing: bool = True
     flash_attention: bool = False
@@ -115,7 +115,7 @@ class TrainingConfig:
 
 @dataclass
 class ExperimentLog:
-    """完整实验日志"""
+    """Complete experiment log"""
     run_id: str
     start_time: str
     seed: int
@@ -130,17 +130,17 @@ class ExperimentLog:
     total_steps: Optional[int] = None
     tokens_per_second: Optional[float] = None
     gpu_hours: Optional[float] = None
-    # P1: 新增运行时统计字段
+    # P1: New runtime statistics fields
     planned_steps: Optional[int] = None
     actual_steps: Optional[int] = None
     initial_lr: Optional[float] = None
     peak_gpu_memory_mb: Optional[float] = None
     steps_per_second: Optional[float] = None
-    # P1: 确定性设置
+    # P1: Determinism settings
     torch_deterministic: Optional[bool] = None
     cudnn_benchmark: Optional[bool] = None
     cudnn_deterministic: Optional[bool] = None
-    # P2: 数据质量统计 (JSON 字符串)
+    # P2: Data quality statistics (JSON string)
     data_quality_stats_json: Optional[str] = None
 
 
@@ -149,11 +149,11 @@ class ExperimentLog:
 # ============================================================================
 
 class ExperimentLogger:
-    """实验日志收集器"""
+    """Experiment log collector"""
     
     @staticmethod
     def collect_environment() -> EnvironmentInfo:
-        """收集环境版本信息"""
+        """Collect environment version info"""
         import importlib.metadata
         
         # OS version
@@ -221,7 +221,7 @@ class ExperimentLogger:
     
     @staticmethod
     def collect_hardware() -> HardwareInfo:
-        """收集硬件信息"""
+        """Collect hardware info"""
         # GPU info
         gpu_model = "N/A"
         gpu_memory_gb = 0.0
@@ -270,7 +270,7 @@ class ExperimentLogger:
     
     @staticmethod
     def collect_lora_stats(model) -> Optional[LoraTrainStats]:
-        """从PEFT模型收集LoRA统计信息"""
+        """Collect LoRA statistics from PEFT model"""
         try:
             from peft import PeftModel
             
@@ -310,7 +310,7 @@ class ExperimentLogger:
     
     @staticmethod
     def get_git_commit() -> Optional[str]:
-        """获取当前Git commit hash"""
+        """Get current Git commit hash"""
         try:
             result = subprocess.run(
                 ['git', 'rev-parse', 'HEAD'],
@@ -326,7 +326,7 @@ class ExperimentLogger:
     
     @staticmethod
     def collect_determinism_info() -> Dict[str, Any]:
-        """收集 PyTorch 确定性设置用于可复现性"""
+        """Collect PyTorch determinism settings for reproducibility"""
         info = {}
         try:
             import torch
@@ -339,7 +339,7 @@ class ExperimentLogger:
     
     @staticmethod
     def collect_training_config(config: dict) -> TrainingConfig:
-        """从配置字典收集训练配置 - 论文级完整记录"""
+        """Collect training config from config dict - Paper-level complete record"""
         training = config.get('training', {})
         lora = config.get('lora', {})
         
@@ -359,7 +359,7 @@ class ExperimentLogger:
             weight_decay=training.get('weightDecay', 0.01),
             max_grad_norm=training.get('maxGradNorm', 1.0),
             precision=training.get('precision', 'fp16'),
-            # 新增字段
+            # New fields
             save_steps=training.get('saveSteps', 100),
             gradient_checkpointing=training.get('gradientCheckpointing', True),
             flash_attention=training.get('flashAttention', False),
@@ -369,10 +369,10 @@ class ExperimentLogger:
     
     @staticmethod
     def collect_dataset_info(dataset_path: str, dataset, config: dict = None) -> DatasetInfo:
-        """收集数据集元信息"""
+        """Collect dataset metadata"""
         train_samples = len(dataset) if dataset else 0
         
-        # 从配置中读取 max_length 并估算 total_tokens
+        # Read max_length from config and estimate total_tokens
         max_length = 512
         if config:
             training = config.get('training', {})
@@ -396,14 +396,14 @@ class ExperimentLogger:
         return DatasetInfo(
             source=source,
             train_samples=train_samples,
-            total_samples=train_samples,  # P0-1: 如果没有 split，total = train
+            total_samples=train_samples,  # P0-1: If no split, total = train
             total_tokens=total_tokens,
             prompt_template="system/user/assistant format",
             output_format="complete function",
         )
     
     def create_log(self, run_id: str, seed: int, config: dict = None) -> ExperimentLog:
-        """创建新的实验日志"""
+        """Create new experiment log"""
         # Collect determinism info for P1 reproducibility
         determinism = self.collect_determinism_info()
         
@@ -426,7 +426,7 @@ class ExperimentLogger:
     
     def finalize(self, log: ExperimentLog, total_steps: int, 
                  total_tokens: int, training_time_seconds: float) -> ExperimentLog:
-        """完成训练后更新日志"""
+        """Update log after training completion"""
         log.end_time = datetime.now().isoformat()
         log.total_steps = total_steps
         log.total_tokens = total_tokens
@@ -438,7 +438,7 @@ class ExperimentLogger:
         return log
     
     def save_to_file(self, log: ExperimentLog, output_path: str):
-        """保存日志到JSON文件"""
+        """Save log to JSON file"""
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -447,11 +447,11 @@ class ExperimentLogger:
         logger.info(f"Experiment log saved to: {output_path}")
     
     def to_json(self, log: ExperimentLog) -> str:
-        """转换为JSON字符串"""
+        """Convert to JSON string"""
         return json.dumps(asdict(log), ensure_ascii=False)
     
     def print_summary(self, log: ExperimentLog):
-        """打印日志摘要"""
+        """Print log summary"""
         logger.info("=" * 60)
         logger.info("EXPERIMENT SUMMARY")
         logger.info("=" * 60)
@@ -500,13 +500,13 @@ class ExperimentLogger:
 # ============================================================================
 
 def create_experiment_log(run_id: str, seed: int = 42, config: dict = None) -> ExperimentLog:
-    """快速创建实验日志的便捷函数"""
+    """Convenience function to quickly create experiment log"""
     logger = ExperimentLogger()
     return logger.create_log(run_id, seed, config)
 
 
 def output_experiment_log_event(log: ExperimentLog):
-    """输出实验日志事件到stdout供后端解析"""
+    """Output experiment log event to stdout for backend parsing"""
     print(json.dumps({
         "type": "experiment_log",
         "data": asdict(log)
@@ -514,7 +514,7 @@ def output_experiment_log_event(log: ExperimentLog):
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # Test code
     logging.basicConfig(level=logging.INFO)
     
     exp_logger = ExperimentLogger()
@@ -522,7 +522,7 @@ if __name__ == "__main__":
     
     exp_logger.print_summary(log)
     
-    # 模拟训练完成
+    # Simulate training completion
     log = exp_logger.finalize(log, total_steps=1000, total_tokens=512000, training_time_seconds=3600)
     
     print("\n--- JSON Output ---")

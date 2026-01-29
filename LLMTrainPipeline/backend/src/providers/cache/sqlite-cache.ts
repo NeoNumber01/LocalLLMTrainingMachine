@@ -13,7 +13,7 @@ export class SqliteCacheProvider implements CacheProvider {
 
         if (!entry) return null;
 
-        // 检查过期
+        // Check expiration
         if (entry.expireAt && new Date() > entry.expireAt) {
             await this.delete(key);
             return null;
@@ -48,14 +48,14 @@ export class SqliteCacheProvider implements CacheProvider {
     async delete(key: string): Promise<void> {
         await prisma.kvCache.delete({
             where: { key },
-        }).catch(() => { }); // 忽略不存在的 key
+        }).catch(() => { }); // Ignore non-existing key
     }
 
     async clear(): Promise<void> {
         await prisma.kvCache.deleteMany();
     }
 
-    // 清理过期条目（可定期调用）
+    // Cleanup expired entries (can be called periodically)
     async cleanup(): Promise<number> {
         const result = await prisma.kvCache.deleteMany({
             where: {

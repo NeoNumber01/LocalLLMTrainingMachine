@@ -37,25 +37,25 @@ export class CodePassKEval implements EvalProvider {
     async evaluate(evalConfig: EvalConfig): Promise<EvalResult> {
         console.log(`[CodePassKEval] Starting evaluation for run ${evalConfig.runId}`);
 
-        // 检查评估脚本是否存在
+        // Check if eval script exists
         if (!fs.existsSync(EVAL_SCRIPT)) {
             console.warn(`[CodePassKEval] Eval script not found: ${EVAL_SCRIPT}`);
             console.log(`[CodePassKEval] Falling back to placeholder metrics`);
             return this.getPlaceholderResult();
         }
 
-        // 检查评估数据集
+        // Check eval dataset
         if (!evalConfig.datasetPath || !fs.existsSync(evalConfig.datasetPath)) {
             console.warn(`[CodePassKEval] Eval dataset not found: ${evalConfig.datasetPath}`);
             console.log(`[CodePassKEval] Falling back to placeholder metrics`);
             return this.getPlaceholderResult();
         }
 
-        // 创建评估配置文件
+        // Create eval config file
         const evalConfigPath = path.join(`./storage/runs/${evalConfig.runId}`, 'eval_config.json');
         const pythonConfig = this.buildPythonConfig(evalConfig);
 
-        // 确保目录存在
+        // Ensure directory exists
         const outputDir = path.dirname(evalConfigPath);
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
@@ -95,7 +95,7 @@ export class CodePassKEval implements EvalProvider {
             data: { level: 'info', message: `Starting evaluation for run ${evalConfig.runId}` }
         };
 
-        // 检查评估脚本是否存在
+        // Check if eval script exists
         if (!fs.existsSync(EVAL_SCRIPT)) {
             yield {
                 type: 'log',
@@ -110,7 +110,7 @@ export class CodePassKEval implements EvalProvider {
             return this.getPlaceholderResult();
         }
 
-        // 检查评估数据集
+        // Check eval dataset
         if (!evalConfig.datasetPath || !fs.existsSync(evalConfig.datasetPath)) {
             yield {
                 type: 'log',
@@ -125,11 +125,11 @@ export class CodePassKEval implements EvalProvider {
             return this.getPlaceholderResult();
         }
 
-        // 创建评估配置文件
+        // Create eval config file
         const evalConfigPath = path.join(`./storage/runs/${evalConfig.runId}`, 'eval_config.json');
         const pythonConfig = this.buildPythonConfig(evalConfig);
 
-        // 确保目录存在
+        // Ensure directory exists
         const outputDir = path.dirname(evalConfigPath);
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
@@ -188,10 +188,10 @@ export class CodePassKEval implements EvalProvider {
         }
     }
 
-    // 注意：评估进程没有超时限制，会一直运行直到完成或出错
+    // Note: No timeout limit for evaluation process, runs until complete or error
 
     private buildPythonConfig(evalConfig: EvalConfig): any {
-        // 使用 evalConfig.config 中的 eval 设置（来自用户 UI 输入），回退到 this.config 默认值
+        // Use eval settings from evalConfig.config (from user UI input), fallback to this.config defaults
         const evalSettings = evalConfig.config?.eval ?? this.config.eval;
 
         return {
@@ -202,7 +202,7 @@ export class CodePassKEval implements EvalProvider {
             outputDir: `./storage/runs/${evalConfig.runId}`,
             eval: {
                 k: evalSettings.k ?? this.config.eval.k,
-                // 用户设置的每个问题的采样数量，回退到 samples 或默认配置中的 samples
+                // User-configured samples per problem, fallback to samples or default config samples
                 numSamples: evalSettings.numSamples ?? evalSettings.samples ?? this.config.eval.numSamples ?? this.config.eval.samples ?? 10,
                 maxTokens: evalSettings.maxTokens ?? this.config.eval.maxTokens ?? 256,
                 temperature: evalSettings.temperature ?? this.config.eval.temperature ?? 0.2,
@@ -215,7 +215,7 @@ export class CodePassKEval implements EvalProvider {
                 enableCodeQuality: evalSettings.enableCodeQuality ?? this.config.eval.enableCodeQuality ?? true,
                 generateReport: evalSettings.generateReport,
                 saveFailureCases: evalSettings.saveFailureCases,
-                // 每个问题的最大测试用例数（限制超长测试集，加速评估）
+                // Max test cases per problem (limit long test sets, speed up evaluation)
                 maxTestsPerProblem: evalSettings.maxTestsPerProblem ?? 10,
             },
             lora: {
@@ -274,7 +274,7 @@ export class CodePassKEval implements EvalProvider {
                 reject(err);
             });
 
-            // 注意：没有超时限制，评估会一直运行直到完成
+            // Note: No timeout limit, evaluation runs until complete
         });
     }
 
@@ -378,7 +378,7 @@ export class CodePassKEval implements EvalProvider {
                 reject(err);
             });
 
-            // 注意：没有超时限制，评估会一直运行直到完成
+            // Note: No timeout limit, evaluation runs until complete
         });
     }
 
@@ -392,7 +392,7 @@ export class CodePassKEval implements EvalProvider {
             stdio: ['pipe', 'pipe', 'pipe'],
         });
 
-        // 保存进程引用以便可以停止
+        // Save process reference so it can be stopped
         this.process = evalProcess;
 
         let stdout = '';
@@ -513,7 +513,7 @@ export class CodePassKEval implements EvalProvider {
             pushEvent({ type: 'done' });
         });
 
-        // 注意：没有超时限制，评估会一直运行直到完成
+        // Note: No timeout limit, evaluation runs until complete
 
         // Yield events as they arrive
         while (true) {

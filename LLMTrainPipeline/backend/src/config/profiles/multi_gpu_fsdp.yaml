@@ -1,4 +1,4 @@
-# 多 GPU FSDP 配置
+# Multi-GPU FSDP configuration
 providers:
   compute: "local_multi_fsdp"
 

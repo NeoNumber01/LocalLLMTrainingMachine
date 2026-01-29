@@ -8,7 +8,7 @@ export class FilesystemStore implements ArtifactStore {
 
     constructor(baseDir: string) {
         this.baseDir = path.resolve(baseDir);
-        // 确保目录存在
+        // Ensure directory exists
         if (!fs.existsSync(this.baseDir)) {
             fs.mkdirSync(this.baseDir, { recursive: true });
         }
@@ -50,7 +50,7 @@ export class FilesystemStore implements ArtifactStore {
             const filePath = path.join(runDir, filename);
             const stats = fs.statSync(filePath);
 
-            // 根据文件扩展名确定 kind
+            // Determine kind based on file extension
             let kind: string = 'log';
             if (filename.includes('checkpoint')) kind = 'checkpoint';
             else if (filename.endsWith('.bin')) kind = 'adapter';

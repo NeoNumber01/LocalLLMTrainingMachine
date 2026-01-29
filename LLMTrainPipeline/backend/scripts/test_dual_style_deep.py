@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-深度测试：验证双风格代码支持在各种边界情况下的正确性
-包括真实 TACO 数据格式测试
+Deep Test: Verify dual-style code support works correctly in various edge cases
+Including real TACO data format tests
 """
 import sys
 import os
@@ -9,10 +9,10 @@ import json
 import re
 from io import StringIO
 
-# =============== 从 eval.py 复制关键函数 ===============
+# =============== Copy key functions from eval.py ===============
 
 def _generate_function_wrapper(code: str, fn_name: str, sample_input: str) -> str:
-    """生成函数调用包装器"""
+    """Generate function call wrapper"""
     input_lines = sample_input.strip().split('\n') if sample_input.strip() else []
     
     wrapper = f'''{code}
@@ -32,11 +32,11 @@ def _read_line():
         return result
     return ''
 
-# 尝试以多种方式调用函数
+# Try calling function in multiple ways
 _result = None
 _called = False
 
-# 策略1: 单个整数
+# Strategy 1: Single integer
 if not _called and len(_lines) >= 1:
     try:
         if len(_lines) == 1 and _lines[0].lstrip('-').isdigit():
@@ -46,7 +46,7 @@ if not _called and len(_lines) >= 1:
     except:
         pass
 
-# 策略2: 第一行是n，第二行是数组
+# Strategy 2: First line is n, second line is array
 if not _called and len(_lines) >= 2:
     try:
         _n = int(_lines[0])
@@ -63,7 +63,7 @@ if not _called and len(_lines) >= 2:
     except:
         pass
 
-# 策略3: 所有行作为整数列表
+# Strategy 3: All lines as integer list
 if not _called and len(_lines) >= 1:
     try:
         _all_ints = [int(line) for line in _lines if line.strip()]
@@ -75,7 +75,7 @@ if not _called and len(_lines) >= 1:
     except:
         pass
 
-# 策略4: 单行空格分隔的整数
+# Strategy 4: Single line space-separated integers
 if not _called and len(_lines) == 1:
     try:
         _arr = list(map(int, _lines[0].split()))
@@ -84,7 +84,7 @@ if not _called and len(_lines) == 1:
     except:
         pass
 
-# 策略5: 字符串参数
+# Strategy 5: String argument
 if not _called and len(_lines) >= 1:
     try:
         if len(_lines) == 1:
@@ -95,7 +95,7 @@ if not _called and len(_lines) >= 1:
     except:
         pass
 
-# 输出结果
+# Output result
 if _result is not None:
     if isinstance(_result, list):
         if _result and isinstance(_result[0], list):
@@ -112,7 +112,7 @@ if _result is not None:
 
 
 def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
-    """智能适配代码风格"""
+    """Smart code style adaptation"""
     has_def = bool(re.search(r'\bdef\s+\w+\s*\(', code))
     has_input = bool(re.search(r'\binput\s*\(', code))
     has_print = bool(re.search(r'\bprint\s*\(', code))
@@ -126,18 +126,18 @@ def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
     if has_def and not has_input:
         fn_name = None
         
-        # 优先查找 solve 函数
+        # Prioritize solve function
         solve_match = re.search(r'\bdef\s+(solve)\s*\(', code)
         if solve_match:
             fn_name = solve_match.group(1)
         else:
-            # 查找 Solution 类的方法
+            # Find Solution class methods
             if has_class:
                 method_match = re.search(r'\bclass\s+Solution\b.*?\bdef\s+(\w+)\s*\(self', code, re.DOTALL)
                 if method_match and method_match.group(1) != '__init__':
                     fn_name = f"Solution().{method_match.group(1)}"
             
-            # 查找任意顶层函数
+            # Find any top-level function
             if not fn_name:
                 top_level_funcs = re.findall(r'^def\s+(\w+)\s*\(', code, re.MULTILINE)
                 if top_level_funcs:
@@ -155,29 +155,29 @@ def _adapt_code_for_stdin_test(code: str, inp: str) -> str:
 
 
 def run_test(test_name, func_code, test_input, expected_output, should_adapt=True):
-    """运行单个测试"""
+    """Run single test"""
     print(f"\n{'='*60}")
-    print(f"测试: {test_name}")
+    print(f"Test: {test_name}")
     print(f"{'='*60}")
     
     try:
-        # 适配代码
+        # Adapt code
         adapted_code = _adapt_code_for_stdin_test(func_code, test_input)
         
-        # 检测是否进行了适配
+        # Check if adaptation was performed
         was_adapted = adapted_code != func_code
         if was_adapted:
             if should_adapt:
-                print("✓ 代码已适配为 stdin/stdout 风格")
+                print("✓ Code adapted to stdin/stdout style")
             else:
-                print("⚠️ 意外进行了适配（不应该发生）")
+                print("⚠️ Unexpected adaptation (should not happen)")
         else:
             if should_adapt:
-                print("⚠️ 代码未被适配（可能是问题）")
+                print("⚠️ Code was not adapted (might be a problem)")
             else:
-                print("✓ 代码正确保持原样")
+                print("✓ Code correctly kept as-is")
         
-        # 执行测试
+        # Execute test
         inp = test_input if test_input.endswith('\n') else test_input + '\n'
         
         old_stdin, old_stdout = sys.stdin, sys.stdout
@@ -192,37 +192,37 @@ def run_test(test_name, func_code, test_input, expected_output, should_adapt=Tru
         actual_output = capture.getvalue().strip()
         expected_clean = expected_output.strip()
         
-        print(f"输入: {repr(test_input[:50])}{'...' if len(test_input) > 50 else ''}")
-        print(f"期望: {repr(expected_clean[:50])}{'...' if len(expected_clean) > 50 else ''}")
-        print(f"实际: {repr(actual_output[:50])}{'...' if len(actual_output) > 50 else ''}")
+        print(f"Input: {repr(test_input[:50])}{'...' if len(test_input) > 50 else ''}")
+        print(f"Expected: {repr(expected_clean[:50])}{'...' if len(expected_clean) > 50 else ''}")
+        print(f"Actual: {repr(actual_output[:50])}{'...' if len(actual_output) > 50 else ''}")
         
         if actual_output == expected_clean:
-            print("✅ 测试通过!")
+            print("✅ Test passed!")
             return True
         else:
-            print("❌ 测试失败!")
+            print("❌ Test failed!")
             return False
             
     except Exception as e:
-        print(f"❌ 执行错误: {type(e).__name__}: {e}")
+        print(f"❌ Execution error: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
         return False
 
 
-# =============== 测试用例 ===============
+# =============== Test Cases ===============
 
 print("="*70)
-print("双风格代码支持 - 深度测试")
+print("Dual-Style Code Support - Deep Test")
 print("="*70)
 
 passed = 0
 total = 0
 
-# 测试1: 真实 TACO 格式数据 - taco_0_sol0
+# Test 1: Real TACO format data - taco_0_sol0
 total += 1
 result = run_test(
-    "真实TACO数据: taco_0_sol0 (benches问题)",
+    "Real TACO data: taco_0_sol0 (benches problem)",
     func_code="""
 def solve(n):
     cn5 = n * (n - 1) // 2 * (n - 2) // 3 * (n - 3) // 4 * (n - 4) // 5
@@ -234,10 +234,10 @@ def solve(n):
 )
 if result: passed += 1
 
-# 测试2: Solution 类方法
+# Test 2: Solution class method
 total += 1
 result = run_test(
-    "Solution类方法 (LeetCode风格)",
+    "Solution class method (LeetCode style)",
     func_code="""
 class Solution:
     def getMaxandMinProduct(self, A, Q, N, M):
@@ -251,14 +251,14 @@ class Solution:
         return ans
 """,
     test_input="5\n1 2 3 4 5\n3\n1 2 3",
-    expected_output="5 3 2"  # 示例期望输出
+    expected_output="5 3 2"  # Example expected output
 )
 if result: passed += 1
 
-# 测试3: 带辅助函数的代码
+# Test 3: Code with helper functions
 total += 1
 result = run_test(
-    "带辅助函数的代码",
+    "Code with helper functions",
     func_code="""
 def helper(x):
     return x * 2
@@ -271,10 +271,10 @@ def solve(n):
 )
 if result: passed += 1
 
-# 测试4: 已有 input/print 的脚本式代码（不应修改）
+# Test 4: Script-style code with input/print (should not modify)
 total += 1
 result = run_test(
-    "脚本式代码（不应修改）",
+    "Script-style code (should not modify)",
     func_code="""
 n = int(input())
 cn5 = n * (n - 1) // 2 * (n - 2) // 3 * (n - 3) // 4 * (n - 4) // 5
@@ -287,10 +287,10 @@ print(cn5 * an5)
 )
 if result: passed += 1
 
-# 测试5: 混合风格代码（有函数定义，也有 input/print）
+# Test 5: Mixed style code (has function definition and input/print)
 total += 1
 result = run_test(
-    "混合风格代码（有def也有input/print）",
+    "Mixed style code (has def and input/print)",
     func_code="""
 def solve(n):
     cn5 = n * (n - 1) // 2 * (n - 2) // 3 * (n - 3) // 4 * (n - 4) // 5
@@ -306,10 +306,10 @@ print(solve(n))
 )
 if result: passed += 1
 
-# 测试6: 空输入处理
+# Test 6: Empty input handling
 total += 1
 result = run_test(
-    "空数组处理",
+    "Empty array handling",
     func_code="""
 def solve(nums):
     if not nums:
@@ -321,10 +321,10 @@ def solve(nums):
 )
 if result: passed += 1
 
-# 测试7: 多行复杂输入
+# Test 7: Multi-line complex input
 total += 1
 result = run_test(
-    "多行复杂输入 (n + 数组)",
+    "Multi-line complex input (n + array)",
     func_code="""
 def solve(n, arr):
     return max(arr) if arr else 0
@@ -334,10 +334,10 @@ def solve(n, arr):
 )
 if result: passed += 1
 
-# 测试8: 返回列表
+# Test 8: Return list
 total += 1
 result = run_test(
-    "返回列表",
+    "Return list",
     func_code="""
 def solve(nums):
     return sorted(nums)
@@ -347,10 +347,10 @@ def solve(nums):
 )
 if result: passed += 1
 
-# 测试9: 布尔返回值
+# Test 9: Boolean return value
 total += 1
 result = run_test(
-    "布尔返回值",
+    "Boolean return value",
     func_code="""
 def solve(n):
     return n > 0
@@ -360,10 +360,10 @@ def solve(n):
 )
 if result: passed += 1
 
-# 测试10: 非 solve 函数名
+# Test 10: Non-solve function name
 total += 1
 result = run_test(
-    "非 solve 函数名 (getMaxandMinProduct)",
+    "Non-solve function name (getMaxandMinProduct)",
     func_code="""
 def getMaxandMinProduct(A, Q, N, M):
     from collections import Counter
@@ -375,39 +375,39 @@ def getMaxandMinProduct(A, Q, N, M):
 )
 if result: passed += 1
 
-# 汇总
+# Summary
 print("\n" + "="*70)
-print(f"测试结果: {passed}/{total} 通过")
+print(f"Test Results: {passed}/{total} passed")
 print("="*70)
 
 if passed == total:
-    print("✅ 所有测试通过！")
+    print("✅ All tests passed!")
 elif passed >= total * 0.7:
-    print(f"⚠️ 大部分测试通过 ({passed}/{total})，部分边界情况可能需要处理")
+    print(f"⚠️ Most tests passed ({passed}/{total}), some edge cases may need handling")
 else:
-    print(f"❌ 多个测试失败 ({passed}/{total})，需要修复")
+    print(f"❌ Multiple tests failed ({passed}/{total}), needs fixing")
 
-# =============== 真实 TACO 数据测试 ===============
+# =============== Real TACO Data Test ===============
 print("\n" + "="*70)
-print("真实 TACO 数据集测试")
+print("Real TACO Dataset Test")
 print("="*70)
 
 train_path = r"C:\Users\Shu Leo\Desktop\practical course\LLMTrainPipeline\backend\storage\datasets\stage2 version2\train02-01.jsonl"
 test_path = r"C:\Users\Shu Leo\Desktop\practical course\LLMTrainPipeline\backend\storage\datasets\stage2 version2\test02-01.jsonl"
 
 try:
-    # 从训练集取一个函数式样本
+    # Get one function-style sample from training set
     with open(train_path, 'r', encoding='utf-8') as f:
         train_sample = json.loads(f.readline())
     
-    # 从测试集取一个 stdin/stdout 样本
+    # Get one stdin/stdout sample from test set
     with open(test_path, 'r', encoding='utf-8') as f:
         test_sample = json.loads(f.readline())
     
-    print(f"\n训练样本: {train_sample['id']}")
-    print(f"测试样本: {test_sample['id']}")
+    print(f"\nTraining sample: {train_sample['id']}")
+    print(f"Test sample: {test_sample['id']}")
     
-    # 用训练样本的代码风格 + 测试样本的测试用例
+    # Use training sample code style + test sample test cases
     train_code = train_sample['code']
     test_tests = test_sample['tests']
     
@@ -416,11 +416,11 @@ try:
         test_input = first_test.get('input', '')
         expected = first_test.get('expected_output', '')
         
-        print(f"\n模拟场景: 使用参考代码 + stdin/stdout 测试")
-        print(f"输入: {test_input[:50]}...")
-        print(f"期望: {expected[:50]}...")
+        print(f"\nSimulated scenario: Using reference code + stdin/stdout test")
+        print(f"Input: {test_input[:50]}...")
+        print(f"Expected: {expected[:50]}...")
         
-        # 测试适配
+        # Test adaptation
         adapted = _adapt_code_for_stdin_test(test_sample['code'], test_input)
         
         old_stdin, old_stdout = sys.stdin, sys.stdout
@@ -435,20 +435,20 @@ try:
         
         actual = capture.getvalue().strip()
         
-        # 规范化比较
+        # Normalized comparison
         def normalize(s):
             return '\n'.join(l.rstrip() for l in str(s).strip().replace('\r\n', '\n').split('\n'))
         
         if normalize(actual) == normalize(expected):
-            print("✅ 真实数据测试通过!")
+            print("✅ Real data test passed!")
         else:
-            print(f"❌ 真实数据测试失败")
-            print(f"  实际输出: {actual[:100]}")
-            print(f"  期望输出: {expected[:100]}")
+            print(f"❌ Real data test failed")
+            print(f"  Actual output: {actual[:100]}")
+            print(f"  Expected output: {expected[:100]}")
             
 except FileNotFoundError as e:
-    print(f"⚠️ 数据文件不存在: {e}")
+    print(f"⚠️ Data file does not exist: {e}")
 except Exception as e:
-    print(f"❌ 测试出错: {e}")
+    print(f"❌ Test error: {e}")
     import traceback
     traceback.print_exc()

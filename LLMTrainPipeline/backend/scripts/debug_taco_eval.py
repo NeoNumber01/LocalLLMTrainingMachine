@@ -69,11 +69,11 @@ print("=== Simulating test code generation ===")
 
 def _convert_stdin_test_enhanced(inp: str, exp: str, code: str, idx: int) -> str:
     """Convert stdin_stdout test to executable code (enhanced version)."""
-    # 确保输入以换行结尾
+    # Ensure input ends with newline
     if inp and not inp.endswith('\n'):
         inp += '\n'
     
-    # 处理列表形式的输出  
+    # Handle list format output
     if isinstance(exp, list):
         exp = '\n'.join(str(e) for e in exp)
     

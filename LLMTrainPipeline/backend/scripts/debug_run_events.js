@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-    // 获取 run_12949 的所有事件
+    // Get all events for run_12949
     const events = await prisma.runEvent.findMany({
         where: { runId: 'run_12949' },
         orderBy: { timestamp: 'asc' },
@@ -22,7 +22,7 @@ async function main() {
     console.log('');
     console.log('========== Run Status ==========');
 
-    // 获取 Run 状态
+    // Get Run status
     const run = await prisma.run.findUnique({
         where: { id: 'run_12949' },
         include: { artifacts: true },
@@ -43,7 +43,7 @@ async function main() {
     console.log('');
     console.log('========== Adapter Check ==========');
 
-    // 检查是否有 adapter 记录
+    // Check if there are adapter records
     const adapters = await prisma.adapter.findMany({
         where: {
             OR: [

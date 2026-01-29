@@ -1,8 +1,8 @@
 /**
  * Academic Report Generator
  * 
- * 直接、详细、丰富的报告生成服务
- * 原则：直接从数据库读取，不做复杂推断，展示所有可用数据
+ * Direct, detailed, comprehensive report generation service
+ * Principle: Read directly from database, no complex inference, display all available data
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -10,11 +10,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 // ============================================================================
-// Types - 完整的报告数据结构
+// Types - Complete report data structure
 // ============================================================================
 
 export interface AcademicReport {
-    // 元信息
+    // Metadata
     runId: string;
     runName: string;
     runType: string;
@@ -25,7 +25,7 @@ export interface AcademicReport {
     seed: number | null;
     gitCommit: string | null;
 
-    // 环境版本 - 全部字段
+    // Environment versions - all fields
     environment: {
         os: string | null;
         python: string | null;
@@ -38,7 +38,7 @@ export interface AcademicReport {
         bitsandbytes: string | null;
     };
 
-    // 硬件配置
+    // Hardware configuration
     hardware: {
         gpu: string | null;
         gpuMemory: string | null;
@@ -46,7 +46,7 @@ export interface AcademicReport {
         ram: string | null;
     };
 
-    // 数据集信息
+    // Dataset information
     dataset: {
         id: string;
         name: string;
@@ -63,7 +63,7 @@ export interface AcademicReport {
         splitMethod: string | null;
     };
 
-    // 基座模型
+    // Base model
     model: {
         id: string;
         name: string;
@@ -72,7 +72,7 @@ export interface AcademicReport {
         quantization: string;
     };
 
-    // 训练配置 - 完整字段
+    // Training configuration - complete fields
     training: {
         batchSize: number;
         gradientAccumulationSteps: number;
@@ -87,7 +87,7 @@ export interface AcademicReport {
         precision: string;
     };
 
-    // LoRA 配置 - 完整字段
+    // LoRA configuration - complete fields
     lora: {
         enabled: boolean;
         rank: number | null;
@@ -100,7 +100,7 @@ export interface AcademicReport {
         trainablePercent: number | null;
     };
 
-    // 训练统计
+    // Training statistics
     trainingStats: {
         totalSteps: number | null;
         totalTokens: number | null;
@@ -109,7 +109,7 @@ export interface AcademicReport {
         finalLoss: number | null;
     };
 
-    // 评估指标 - 完整字段
+    // Evaluation metrics - complete fields
     evaluation: {
         passAt1: number | null;
         passAt5: number | null;
@@ -131,7 +131,7 @@ export interface AcademicReport {
         };
     };
 
-    // 后处理对比(如有)
+    // Post-processing comparison (if available)
     postProcess: {
         enabled: boolean;
         passAt1Before: number | null;
@@ -143,13 +143,13 @@ export interface AcademicReport {
         fixReasonDistribution: Record<string, number>;
     } | null;
 
-    // 训练曲线数据
+    // Training curve data
     lossCurve: { step: number; loss: number; lr?: number; epoch?: number }[];
 
-    // 检查点列表
+    // Checkpoint list
     checkpoints: { step: number; epoch: number | null; loss: number | null; path: string; createdAt: string }[];
 
-    // P1: 评测方法论 (仅评测报告)
+    // P1: Evaluation methodology (evaluation reports only)
     evaluationProtocol: {
         passAtKDefinition: string;
         samplesPerTask: number;
@@ -161,7 +161,7 @@ export interface AcademicReport {
         memoryLimitHandling: string;
     } | null;
 
-    // P2: 代码质量指标 (仅评测报告)
+    // P2: Code quality metrics (evaluation reports only)
     codeQuality: {
         avgCodeLength: number | null;
         avgLineCount: number | null;
@@ -169,7 +169,7 @@ export interface AcademicReport {
         interfaceComplianceRate: number | null;
     } | null;
 
-    // P1: 可复现性信息
+    // P1: Reproducibility information
     reproducibility: {
         pythonSeed: number | null;
         numpySeed: number | null;
@@ -178,7 +178,7 @@ export interface AcademicReport {
         checkpointHash: string | null;
     } | null;
 
-    // 原始配置 JSON（供调试和完整记录）
+    // Raw config JSON (for debugging and complete records)
     rawConfig: any;
     rawMetrics: any;
     rawEvalResult: any;
@@ -190,10 +190,10 @@ export interface AcademicReport {
 
 export class AcademicReportGenerator {
     /**
-     * 从数据库生成完整学术报告 - 直接读取，不推断
+     * Generate complete academic report from database - read directly, no inference
      */
     async generateReport(runId: string): Promise<AcademicReport> {
-        // 获取 Run 及所有关联数据
+        // Get Run and all related data
         const run = await prisma.run.findUnique({
             where: { id: runId },
             include: {
@@ -216,7 +216,7 @@ export class AcademicReportGenerator {
             throw new Error(`Run not found: ${runId}`);
         }
 
-        // 直接解析 JSON 字段
+        // Parse JSON fields directly
         let config: any = {};
         let evalResult: any = {};
         let metrics: any = {};
@@ -225,7 +225,7 @@ export class AcademicReportGenerator {
         try { evalResult = JSON.parse(run.evalResultJson || '{}'); } catch { }
         try { metrics = JSON.parse(run.metricsJson || '{}'); } catch { }
 
-        // 训练配置 - 支持扁平格式和嵌套格式 (与 reports.ts 保持一致)
+        // Training config - support flat format and nested format (consistent with reports.ts)
         const flatConfig = config as any;
         const trainingConfig = flatConfig.training || {
             lr: flatConfig.lr,
@@ -251,12 +251,12 @@ export class AcademicReportGenerator {
             quantization: flatConfig.quantization,
         };
 
-        // 计算持续时间
+        // Calculate duration
         const duration = this.calculateDuration(run.startedAt, run.completedAt) || run.duration || '';
 
-        // 构建完整报告
+        // Build complete report
         const report: AcademicReport = {
-            // === 元信息 ===
+            // === Metadata ===
             runId: run.id,
             runName: run.name,
             runType: run.type,
@@ -267,7 +267,7 @@ export class AcademicReportGenerator {
             seed: run.seed,
             gitCommit: run.gitCommit,
 
-            // === 环境版本 - 直接读取 experimentMeta ===
+            // === Environment versions - read directly from experimentMeta ===
             environment: {
                 os: run.experimentMeta?.osVersion || null,
                 python: run.experimentMeta?.pythonVersion || null,
@@ -280,7 +280,7 @@ export class AcademicReportGenerator {
                 bitsandbytes: run.experimentMeta?.bitsandbytesVersion || null,
             },
 
-            // === 硬件配置 - 直接读取 ===
+            // === Hardware configuration - read directly ===
             hardware: {
                 gpu: run.experimentMeta?.gpuModel || null,
                 gpuMemory: run.experimentMeta?.gpuMemoryGB ? `${run.experimentMeta.gpuMemoryGB.toFixed(1)} GB` : null,
@@ -288,7 +288,7 @@ export class AcademicReportGenerator {
                 ram: run.experimentMeta?.ramGB ? `${run.experimentMeta.ramGB.toFixed(1)} GB` : null,
             },
 
-            // === 数据集 - 完整信息 ===
+            // === Dataset - complete info ===
             dataset: {
                 id: run.dataset.id,
                 name: run.dataset.name,
@@ -305,7 +305,7 @@ export class AcademicReportGenerator {
                 splitMethod: run.datasetMeta?.splitMethod || null,
             },
 
-            // === 模型 - 完整信息 ===
+            // === Model - complete info ===
             model: {
                 id: run.model.id,
                 name: run.model.name,
@@ -314,7 +314,7 @@ export class AcademicReportGenerator {
                 quantization: loraConfig.quantization || run.model.quantization || 'None',
             },
 
-            // === 训练配置 - 直接读取 configJson ===
+            // === Training config - read directly from configJson ===
             training: {
                 batchSize: trainingConfig.batchSize || 1,
                 gradientAccumulationSteps: trainingConfig.gradientAccumulation || trainingConfig.gradAccum || 8,
@@ -329,7 +329,7 @@ export class AcademicReportGenerator {
                 precision: trainingConfig.precision || 'fp16',
             },
 
-            // === LoRA 配置 - 直接读取 ===
+            // === LoRA config - read directly ===
             lora: {
                 enabled: loraConfig.enabled !== false,
                 rank: run.loraStats?.rank || loraConfig.rank || null,
@@ -342,21 +342,21 @@ export class AcademicReportGenerator {
                 trainablePercent: run.loraStats?.trainablePercent || null,
             },
 
-            // === 训练统计 ===
+            // === Training statistics ===
             trainingStats: {
-                // P0-FIX: 使用有效的最后 step（有 lr 的 step）
+                // P0-FIX: Use last valid step (step with lr)
                 totalSteps: run.totalSteps || this.getValidStepCount(run.metrics),
                 totalTokens: run.totalTokens || null,
                 tokensPerSecond: run.tokensPerSecond || null,
                 gpuHours: run.gpuHours || this.calculateGpuHours(run.startedAt, run.completedAt),
-                // P0-FIX: 获取有效的最后 loss（有 lr 的 step，排除 epoch 平均值）
+                // P0-FIX: Get last valid loss (step with lr, exclude epoch average)
                 finalLoss: this.getValidFinalLoss(run.metrics),
             },
 
-            // === 评估指标 ===
+            // === Evaluation metrics ===
             evaluation: {
                 passAt1: metrics.passAt1 ?? evalResult.passAt1 ?? null,
-                // P0-FIX: 使用正确的字段名 passAt5/passAt10（而非 passAtK['5']）
+                // P0-FIX: Use correct field names passAt5/passAt10 (not passAtK['5'])
                 passAt5: evalResult.passAt5 ?? evalResult.passAtK?.['5'] ?? null,
                 passAt10: evalResult.passAt10 ?? evalResult.passAtK?.['10'] ?? null,
                 compileRate: metrics.compileRate ?? evalResult.compileRate ?? null,
@@ -376,7 +376,7 @@ export class AcademicReportGenerator {
                 },
             },
 
-            // === 后处理 ===
+            // === Post-processing ===
             postProcess: run.postProcessLogs.length > 0 ? {
                 enabled: true,
                 passAt1Before: run.postProcessLogs[0]?.passAt1Before ?? null,
@@ -388,8 +388,8 @@ export class AcademicReportGenerator {
                 fixReasonDistribution: this.parseJson(run.postProcessLogs[0]?.fixReasonDistribution, {}),
             } : null,
 
-            // === 训练曲线 ===
-            // P0-FIX: 过滤掉没有 lr 的异常步骤（HuggingFace Trainer 最后的额外 log）
+            // === Training curve ===
+            // P0-FIX: Filter out abnormal steps without lr (HuggingFace Trainer's final extra log)
             lossCurve: run.metrics
                 .map(m => {
                     let extra: any = {};
@@ -401,14 +401,14 @@ export class AcademicReportGenerator {
                         epoch: extra.epoch,
                     };
                 })
-                .filter(m => m.lr != null),  // 只保留有 lr 的有效训练步骤
+                .filter(m => m.lr != null),  // Only keep valid training steps with lr
 
 
-            // === 检查点列表 - 从 artifacts 中过滤 checkpoint 类型 ===
+            // === Checkpoint list - filter checkpoint type from artifacts ===
             checkpoints: run.artifacts
                 .filter(a => a.kind === 'checkpoint')
                 .map(a => {
-                    // 从path中提取step信息，如 checkpoint-100
+                    // Extract step info from path, e.g. checkpoint-100
                     const stepMatch = a.path.match(/checkpoint-?(\d+)/i);
                     const step = stepMatch ? parseInt(stepMatch[1]) : 0;
                     return {
@@ -420,7 +420,7 @@ export class AcademicReportGenerator {
                     };
                 }),
 
-            // === P1: 评测方法论 (仅评测报告) ===
+            // === P1: Evaluation methodology (evaluation reports only) ===
             evaluationProtocol: run.type === 'eval' ? {
                 passAtKDefinition: evalResult.evaluationProtocol?.passAtKDefinition ??
                     'success if any of the first k samples passes all tests',
@@ -435,7 +435,7 @@ export class AcademicReportGenerator {
                 memoryLimitHandling: evalResult.evaluationProtocol?.memoryLimitHandling ?? 'no limit',
             } : null,
 
-            // === P2: 代码质量指标 (仅评测报告) ===
+            // === P2: Code quality metrics (evaluation reports only) ===
             codeQuality: evalResult.codeQuality ? {
                 avgCodeLength: evalResult.codeQuality.avgCodeLength ?? evalResult.codeQuality.avg_code_length ?? null,
                 avgLineCount: evalResult.codeQuality.avgLineCount ?? evalResult.codeQuality.avg_line_count ?? null,
@@ -444,7 +444,7 @@ export class AcademicReportGenerator {
                     evalResult.codeQuality.interface_compliance_rate ?? null,
             } : null,
 
-            // === P1: 可复现性信息 ===
+            // === P1: Reproducibility info ===
             reproducibility: evalResult.reproducibilityInfo ? {
                 pythonSeed: evalResult.reproducibilityInfo.pythonSeed ?? evalResult.reproducibilityInfo.python_seed ?? null,
                 numpySeed: evalResult.reproducibilityInfo.numpySeed ?? evalResult.reproducibilityInfo.numpy_seed ?? null,
@@ -455,7 +455,7 @@ export class AcademicReportGenerator {
                     evalResult.reproducibilityInfo.checkpoint_hash ?? null,
             } : null,
 
-            // === 原始数据（调试用）===
+            // === Raw data (for debugging) ===
             rawConfig: config,
             rawMetrics: metrics,
             rawEvalResult: evalResult,
@@ -465,7 +465,7 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * 解析 target modules
+     * Parse target modules
      */
     private parseTargetModules(dbValue: string | null | undefined, configValue: any): string[] {
         if (dbValue) {
@@ -476,7 +476,7 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * 安全解析 JSON
+     * Safely parse JSON
      */
     private parseJson(value: string | null | undefined, defaultValue: any): any {
         if (!value) return defaultValue;
@@ -484,7 +484,7 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * 计算持续时间
+     * Calculate duration
      */
     private calculateDuration(start: Date | null, end: Date | null): string {
         if (!start || !end) return '';
@@ -502,24 +502,24 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * P0-FIX: 获取有效的最终 loss（有 lr 的最后一个 step，排除 epoch 平均值）
+     * P0-FIX: Get valid final loss (last step with lr, exclude epoch average)
      */
     private getValidFinalLoss(metrics: any[]): number | null {
         if (!metrics || metrics.length === 0) return null;
 
-        // 从后往前找有 lr 的最后一个 step
+        // Search from back for last step with lr
         for (let i = metrics.length - 1; i >= 0; i--) {
             const m = metrics[i];
             let extra: any = {};
             try { extra = JSON.parse(m.extraJson || '{}'); } catch { }
 
-            // 如果有 lr，说明是正常的训练 step
+            // If has lr, this is a normal training step
             if (extra.lr != null) {
                 return m.loss;
             }
         }
 
-        // 如果所有 step 都没有 lr，返回倒数第二个（可能最后一个是 epoch 平均值）
+        // If all steps have no lr, return second to last (last one might be epoch average)
         if (metrics.length >= 2) {
             return metrics[metrics.length - 2].loss;
         }
@@ -528,12 +528,12 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * P0-FIX: 获取有效的 step 数（有 lr 的最后一个 step）
+     * P0-FIX: Get valid step count (last step with lr)
      */
     private getValidStepCount(metrics: any[]): number | null {
         if (!metrics || metrics.length === 0) return null;
 
-        // 从后往前找有 lr 的 step
+        // Search from back for step with lr
         for (let i = metrics.length - 1; i >= 0; i--) {
             const m = metrics[i];
             try {
@@ -542,7 +542,7 @@ export class AcademicReportGenerator {
             } catch { }
         }
 
-        // 如果都没有 lr，返回倒数第二个
+        // If all have no lr, return second to last
         if (metrics.length >= 2) {
             return metrics[metrics.length - 2].step;
         }
@@ -551,7 +551,7 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * 计算 GPU 小时
+     * Calculate GPU hours
      */
     private calculateGpuHours(start: Date | null, end: Date | null): number | null {
         if (!start || !end) return null;
@@ -560,7 +560,7 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * 格式化大数字
+     * Format large numbers
      */
     private formatNumber(num: number | null | undefined): string {
         if (num == null) return 'N/A';
@@ -571,14 +571,14 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * 生成完整详细的 HTML 报告
+     * Generate complete detailed HTML report
      */
     async generateHtml(report: AcademicReport): Promise<string> {
-        // 生成训练曲线 SVG
+        // Generate training curve SVG
         const lossCurveSvg = this.generateLossCurveSvg(report.lossCurve);
-        // 生成详细的 Loss 数据表格
+        // Generate detailed Loss data table
         const lossTableHtml = this.generateLossTableHtml(report.lossCurve);
-        // 生成 Per-Epoch 统计
+        // Generate Per-Epoch statistics
         const perEpochHtml = this.generatePerEpochMetricsHtml(report.lossCurve);
 
 
@@ -967,7 +967,7 @@ export class AcademicReportGenerator {
         </div>
     </div>
 
-    <!-- Training Configuration (仅训练报告) -->
+    <!-- Training Configuration (training reports only) -->
     ${report.runType !== 'eval' ? `
     <div class="section">
         <h2><span class="icon">⚙️</span> Training Configuration</h2>
@@ -992,7 +992,7 @@ export class AcademicReportGenerator {
     </div>
     ` : ''}
 
-    <!-- LoRA Configuration (仅训练报告) -->
+    <!-- LoRA Configuration (training reports only) -->
     ${report.runType !== 'eval' && report.lora.enabled ? `
     <div class="section">
         <h2><span class="icon">🔧</span> LoRA Configuration</h2>
@@ -1013,7 +1013,7 @@ export class AcademicReportGenerator {
     </div>
     ` : ''}
 
-    <!-- P1: Evaluation Protocol (仅评测报告) -->
+    <!-- P1: Evaluation Protocol (evaluation reports only) -->
     ${report.runType === 'eval' && report.evaluationProtocol ? `
     <div class="section">
         <h2><span class="icon">📋</span> Evaluation Protocol</h2>
@@ -1037,7 +1037,7 @@ export class AcademicReportGenerator {
     </div>
     ` : ''}
 
-    <!-- P2: Code Quality (仅评测报告) -->
+    <!-- P2: Code Quality (evaluation reports only) -->
     ${report.runType === 'eval' && report.codeQuality ? `
     <div class="section">
         <h2><span class="icon">📊</span> Code Quality Metrics</h2>
@@ -1147,7 +1147,7 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * 格式化显示值
+     * Format display value
      */
     private formatValue(value: number | null | undefined, suffix: string = '', decimals: number = 2): string {
         if (value == null) return 'N/A';
@@ -1155,18 +1155,18 @@ export class AcademicReportGenerator {
     }
 
     /**
-     * 生成 Per-Epoch Metrics HTML - 统计每个 epoch 的 loss 均值
+     * Generate Per-Epoch Metrics HTML - calculate average loss per epoch
      */
     private generatePerEpochMetricsHtml(lossCurve: { step: number; loss: number; lr?: number; epoch?: number }[]): string {
         if (lossCurve.length === 0) return '';
 
-        // 按 epoch 分组
-        // P0-FIX: HuggingFace Trainer 的 epoch 是小数形式（如 0.1, 0.2...），需要取整后分组
+        // Group by epoch
+        // P0-FIX: HuggingFace Trainer uses decimal epoch (e.g. 0.1, 0.2...), need to round then group
         const epochsData: Map<number, { losses: number[]; evalLoss?: number }> = new Map();
 
         for (const m of lossCurve) {
             const rawEpoch = m.epoch;
-            // 如果没有 epoch 字段，默认为 1；否则取整（0.1->1, 0.9->1, 1.0->1, 1.1->2）
+            // If no epoch field, default to 1; otherwise round (0.1->1, 0.9->1, 1.0->1, 1.1->2)
             const epoch = rawEpoch == null ? 1 : Math.max(1, Math.floor(rawEpoch) + (rawEpoch % 1 > 0 ? 1 : 0));
             if (!epochsData.has(epoch)) {
                 epochsData.set(epoch, { losses: [] });
@@ -1176,10 +1176,10 @@ export class AcademicReportGenerator {
             }
         }
 
-        // 如果只有一个 epoch，不显示此部分
+        // If only one epoch, don't show this section
         if (epochsData.size <= 1) return '';
 
-        // 生成表格行
+        // Generate table rows
         const sortedEpochs = Array.from(epochsData.keys()).sort((a, b) => a - b);
         const rows = sortedEpochs.map(epoch => {
             const data = epochsData.get(epoch)!;
@@ -1227,18 +1227,18 @@ export class AcademicReportGenerator {
 
 
     /**
-     * 生成 Per-Epoch Metrics Markdown - 统计每个 epoch 的 loss 均值
+     * Generate Per-Epoch Metrics Markdown - calculate average loss per epoch
      */
     private generatePerEpochMarkdown(lossCurve: { step: number; loss: number; lr?: number; epoch?: number }[]): string {
         if (lossCurve.length === 0) return '';
 
-        // 按 epoch 分组
-        // P0-FIX: HuggingFace Trainer 的 epoch 是小数形式（如 0.1, 0.2...），需要取整后分组
+        // Group by epoch
+        // P0-FIX: HuggingFace Trainer uses decimal epoch (e.g. 0.1, 0.2...), need to round then group
         const epochsData: Map<number, { losses: number[] }> = new Map();
 
         for (const m of lossCurve) {
             const rawEpoch = m.epoch;
-            // 如果没有 epoch 字段，默认为 1；否则取整（0.1->1, 0.9->1, 1.0->1, 1.1->2）
+            // If no epoch field, default to 1; otherwise round (0.1->1, 0.9->1, 1.0->1, 1.1->2)
             const epoch = rawEpoch == null ? 1 : Math.max(1, Math.floor(rawEpoch) + (rawEpoch % 1 > 0 ? 1 : 0));
             if (!epochsData.has(epoch)) {
                 epochsData.set(epoch, { losses: [] });
@@ -1248,10 +1248,10 @@ export class AcademicReportGenerator {
             }
         }
 
-        // 如果只有一个 epoch，不显示此部分
+        // If only one epoch, don't show this section
         if (epochsData.size <= 1) return '';
 
-        // 生成 Markdown 表格
+        // Generate Markdown table
         const sortedEpochs = Array.from(epochsData.keys()).sort((a, b) => a - b);
         const rows = sortedEpochs.map(epoch => {
             const data = epochsData.get(epoch)!;
@@ -1274,7 +1274,7 @@ ${rows}
     }
 
     /**
-     * 生成训练曲线 SVG
+     * Generate training curve SVG
      */
     private generateLossCurveSvg(lossCurve: { step: number; loss: number }[]): string {
 
@@ -1286,7 +1286,7 @@ ${rows}
         const chartWidth = width - padding.left - padding.right;
         const chartHeight = height - padding.top - padding.bottom;
 
-        // 获取数据范围
+        // Get data range
         const steps = lossCurve.map(d => d.step);
         const losses = lossCurve.map(d => d.loss);
         const minStep = Math.min(...steps);
@@ -1294,22 +1294,22 @@ ${rows}
         const minLoss = Math.min(...losses) * 0.9;
         const maxLoss = Math.max(...losses) * 1.1;
 
-        // 缩放函数
+        // Scale functions
         const scaleX = (step: number) => padding.left + ((step - minStep) / (maxStep - minStep || 1)) * chartWidth;
         const scaleY = (loss: number) => padding.top + chartHeight - ((loss - minLoss) / (maxLoss - minLoss || 1)) * chartHeight;
 
-        // 生成路径
+        // Generate path
         const pathData = lossCurve.map((d, i) =>
             `${i === 0 ? 'M' : 'L'} ${scaleX(d.step).toFixed(1)} ${scaleY(d.loss).toFixed(1)}`
         ).join(' ');
 
-        // 生成 Y 轴刻度
+        // Generate Y axis ticks
         const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
             const val = minLoss + t * (maxLoss - minLoss);
             return { y: scaleY(val), label: val.toFixed(2) };
         });
 
-        // 生成 X 轴刻度
+        // Generate X axis ticks
         const xTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
             const val = minStep + t * (maxStep - minStep);
             return { x: scaleX(val), label: Math.round(val).toString() };
@@ -1344,49 +1344,49 @@ ${rows}
     }
 
     /**
-     * 生成详细的 Loss 数据表格 HTML
+     * Generate detailed Loss data table HTML
      */
     private generateLossTableHtml(lossCurve: { step: number; loss: number; lr?: number; epoch?: number }[]): string {
         if (lossCurve.length === 0) return '';
 
-        // 统计信息
+        // Statistics info
         const totalPoints = lossCurve.length;
         const losses = lossCurve.map(d => d.loss).filter(l => l != null);
         const minLoss = losses.length > 0 ? Math.min(...losses) : null;
         const maxLoss = losses.length > 0 ? Math.max(...losses) : null;
         const avgLoss = losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / losses.length : null;
 
-        // 找到最低 loss 对应的 step
+        // Find step with minimum loss
         const minLossItem = lossCurve.find(d => d.loss === minLoss);
         const minLossStep = minLossItem?.step ?? null;
 
-        // 确定要显示的关键点索引 - 使用 linspace 风格均匀采样
+        // Determine key point indices to display - use linspace style uniform sampling
         const maxSamples = 30;
         let sortedIndices: number[];
 
         if (lossCurve.length <= maxSamples) {
-            // 数据量小，直接使用所有索引
+            // Small data amount, use all indices directly
             sortedIndices = Array.from({ length: lossCurve.length }, (_, i) => i);
         } else {
-            // 使用 linspace 风格等间距采样
-            // 预留 1 个位置给最低 loss 点
+            // Use linspace style equally spaced sampling
+            // Reserve 1 position for minimum loss point
             const effectiveSamples = maxSamples - 1;
             const sampleSet = new Set<number>();
 
             for (let i = 0; i < effectiveSamples; i++) {
-                // linspace 公式: i * (n-1) / (samples-1) 确保包含首尾
+                // linspace formula: i * (n-1) / (samples-1) ensures inclusion of first and last
                 const idx = Math.round(i * (lossCurve.length - 1) / (effectiveSamples - 1));
                 sampleSet.add(idx);
             }
 
-            // 添加最低 loss 点
+            // Add minimum loss point
             const minLossIndex = lossCurve.findIndex(d => d.loss === minLoss);
             if (minLossIndex >= 0) sampleSet.add(minLossIndex);
 
             sortedIndices = Array.from(sampleSet).sort((a, b) => a - b);
         }
 
-        // 生成摘要表格行
+        // Generate summary table rows
         const summaryRows = sortedIndices.map(idx => {
             const m = lossCurve[idx];
             const lossClass = m.loss === minLoss ? 'highlight' : '';
@@ -1400,7 +1400,7 @@ ${rows}
             `;
         }).join('');
 
-        // 生成完整数据行
+        // Generate complete data rows
         const allRows = lossCurve.map(m => `
             <tr>
                 <td>${m.step}</td>
@@ -1414,7 +1414,7 @@ ${rows}
         <div class="section">
             <h2><span class="icon">📊</span> Training Metrics Log</h2>
             
-            <!-- 统计摘要 -->
+            <!-- Statistics summary -->
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
                 <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; text-align: center;">
                     <div style="color: var(--text-secondary); font-size: 12px;">Total Steps</div>
@@ -1434,7 +1434,7 @@ ${rows}
                 </div>
             </div>
             
-            <!-- 摘要表格 -->
+            <!-- Summary table -->
             <h3 style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Key Data Points (${sortedIndices.length} of ${totalPoints})</h3>
             <table>
                 <thead>
@@ -1450,7 +1450,7 @@ ${rows}
                 </tbody>
             </table>
             
-            <!-- 完整数据（可展开） -->
+            <!-- Complete data (expandable) -->
             <details class="raw-data" style="margin-top: 20px;">
                 <summary>📋 View All ${totalPoints} Data Points</summary>
                 <div style="max-height: 400px; overflow-y: auto;">
@@ -1474,7 +1474,7 @@ ${rows}
     }
 
     /**
-     * 生成 Markdown 格式报告
+     * Generate Markdown format report
      */
     async generateMarkdown(report: AcademicReport): Promise<string> {
         return `# ${report.runName} - Complete Training Report

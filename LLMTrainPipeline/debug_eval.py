@@ -1,5 +1,5 @@
 """
-最终诊断：用正确的字段测试评测流程
+Final diagnosis: Test evaluation flow with correct fields
 """
 import json
 import sys
@@ -13,7 +13,7 @@ from eval import build_json_test_code, execute_code_safely
 
 test_file = r'backend/storage/datasets/stage2 version2/test02-01.jsonl'
 
-# 读取前20个问题
+# Read first 20 problems
 problems = []
 with open(test_file, 'r', encoding='utf-8') as f:
     for i, line in enumerate(f):
@@ -22,10 +22,10 @@ with open(test_file, 'r', encoding='utf-8') as f:
         if line.strip():
             problems.append(json.loads(line))
 
-print(f"测试 {len(problems)} 个问题")
+print(f"Testing {len(problems)} problems")
 print("="*60)
 
-# 统计
+# Statistics
 passed = 0
 failed = 0
 errors = {}
@@ -34,18 +34,18 @@ for idx, problem in enumerate(problems):
     task_id = problem.get('id', f'{idx}')
     tests = problem.get('tests', [])
     
-    # 使用正确的字段名: code 而不是 solution
+    # Use correct field name: code instead of solution
     code = problem.get('code', '')
     
     if not code:
-        print(f"[{idx+1}] {task_id}: 没有代码字段!")
+        print(f"[{idx+1}] {task_id}: No code field!")
         continue
     
     if not tests:
-        print(f"[{idx+1}] {task_id}: 没有测试用例!")
+        print(f"[{idx+1}] {task_id}: No test cases!")
         continue
     
-    # 检测测试类型
+    # Detect test type
     is_stdin_stdout = False
     if isinstance(tests[0], str):
         try:
@@ -54,10 +54,10 @@ for idx, problem in enumerate(problems):
         except:
             pass
     
-    # 构建测试代码
+    # Build test code
     test_code = build_json_test_code(tests[:3], code, max_tests=3)
     
-    # 执行
+    # Execute
     if is_stdin_stdout:
         result = execute_code_safely("", test_code, timeout=10)
     else:
@@ -71,11 +71,11 @@ for idx, problem in enumerate(problems):
         err_type = result.error_type.value
         errors[err_type] = errors.get(err_type, 0) + 1
         print(f"[{idx+1}] {task_id}: FAIL ({err_type})")
-        # 显示错误详情
-        if failed <= 3:  # 只显示前3个错误的详情
-            print(f"    错误: {result.error_message[:200]}")
+        # Show error details
+        if failed <= 3:  # Only show details for first 3 errors
+            print(f"    Error: {result.error_message[:200]}")
 
 print()
 print("="*60)
-print(f"结果: {passed}/{passed+failed} 通过 ({100*passed/(passed+failed):.1f}%)")
-print(f"错误分类: {errors}")
+print(f"Result: {passed}/{passed+failed} passed ({100*passed/(passed+failed):.1f}%)")
+print(f"Error classification: {errors}")

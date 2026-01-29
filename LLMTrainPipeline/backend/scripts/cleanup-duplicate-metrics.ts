@@ -1,14 +1,14 @@
-// 清理 RunMetric 表中的重复数据
-// 保留每个 (runId, step) 组合中最新的一条记录
+// Cleanup duplicate data in RunMetric table
+// Keep only the latest record for each (runId, step) combination
 
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function cleanupDuplicateMetrics() {
-    console.log('开始清理重复的 RunMetric 数据...');
+    console.log('Starting cleanup of duplicate RunMetric data...');
 
-    // 查找所有重复的 (runId, step) 组合
+    // Find all duplicate (runId, step) combinations
     const duplicates = await prisma.$queryRaw<Array<{ runId: string; step: number; count: bigint }>>`
         SELECT runId, step, COUNT(*) as count 
         FROM RunMetric 
@@ -16,12 +16,12 @@ async function cleanupDuplicateMetrics() {
         HAVING COUNT(*) > 1
     `;
 
-    console.log(`找到 ${duplicates.length} 个重复的 (runId, step) 组合`);
+    console.log(`Found ${duplicates.length} duplicate (runId, step) combinations`);
 
     let totalDeleted = 0;
 
     for (const dup of duplicates) {
-        // 获取该组合下的所有记录，按 timestamp 降序排列
+        // Get all records for this combination, sorted by timestamp descending
         const metrics = await prisma.runMetric.findMany({
             where: {
                 runId: dup.runId,
@@ -32,7 +32,7 @@ async function cleanupDuplicateMetrics() {
             }
         });
 
-        // 保留第一条（最新的），删除其余的
+        // Keep the first one (newest), delete the rest
         const toDelete = metrics.slice(1).map(m => m.id);
 
         if (toDelete.length > 0) {
@@ -44,13 +44,13 @@ async function cleanupDuplicateMetrics() {
                 }
             });
             totalDeleted += toDelete.length;
-            console.log(`  删除了 ${toDelete.length} 条重复记录 (runId=${dup.runId}, step=${dup.step})`);
+            console.log(`  Deleted ${toDelete.length} duplicate records (runId=${dup.runId}, step=${dup.step})`);
         }
     }
 
-    console.log(`\n清理完成！共删除 ${totalDeleted} 条重复记录`);
+    console.log(`\nCleanup complete! Deleted ${totalDeleted} duplicate records`);
 
-    // 验证
+    // Verify
     const remaining = await prisma.$queryRaw<Array<{ runId: string; step: number; count: bigint }>>`
         SELECT runId, step, COUNT(*) as count 
         FROM RunMetric 
@@ -59,9 +59,9 @@ async function cleanupDuplicateMetrics() {
     `;
 
     if (remaining.length === 0) {
-        console.log('✅ 验证通过：没有剩余的重复记录');
+        console.log('✅ Verification passed: No remaining duplicate records');
     } else {
-        console.log(`❌ 警告：仍有 ${remaining.length} 个重复组合`);
+        console.log(`❌ Warning: Still have ${remaining.length} duplicate combinations`);
     }
 
     await prisma.$disconnect();

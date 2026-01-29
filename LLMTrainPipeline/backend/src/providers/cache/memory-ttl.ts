@@ -13,7 +13,7 @@ export class MemoryTtlCache implements CacheProvider {
     constructor(defaultTtlSeconds: number = 300) {
         this.defaultTtl = defaultTtlSeconds * 1000;
 
-        // 定期清理过期条目
+        // Periodically cleanup expired entries
         setInterval(() => this.cleanup(), 60000);
     }
 

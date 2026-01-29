@@ -1,6 +1,6 @@
 /**
- * 从 storage/runs 目录恢复历史运行记录
- * 读取 experiment_log.json, train_config.json, eval_config.json 等文件重建数据库记录
+ * Restore historical run records from storage/runs directory
+ * Read experiment_log.json, train_config.json, eval_config.json etc. to rebuild database records
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -10,7 +10,7 @@ import path from 'path';
 const prisma = new PrismaClient();
 const RUNS_DIR = './storage/runs';
 
-// 辅助函数: 读取 JSON 文件
+// Helper function: Read JSON file
 function readJson(filePath) {
     try {
         const content = fs.readFileSync(filePath, 'utf-8');
@@ -20,7 +20,7 @@ function readJson(filePath) {
     }
 }
 
-// 计算持续时间
+// Calculate duration
 function calculateDuration(startTime, endTime) {
     if (!startTime || !endTime) return null;
     const start = new Date(startTime);
@@ -34,17 +34,17 @@ function calculateDuration(startTime, endTime) {
     return `${minutes}m`;
 }
 
-// 恢复训练记录
+// Restore training run
 async function restoreTrainingRun(runId, runDir) {
     const experimentLog = readJson(path.join(runDir, 'experiment_log.json'));
     const trainConfig = readJson(path.join(runDir, 'train_config.json'));
 
     if (!experimentLog && !trainConfig) {
-        console.log(`  跳过 ${runId}: 无训练配置文件`);
+        console.log(`  Skip ${runId}: No training config file`);
         return null;
     }
 
-    // 查找模型ID
+    // Find model ID
     let modelName = 'Unknown Model';
     if (trainConfig?.modelPath) {
         modelName = path.basename(trainConfig.modelPath);
@@ -55,18 +55,18 @@ async function restoreTrainingRun(runId, runDir) {
     });
 
     if (!model) {
-        console.log(`  警告: 找不到模型 ${modelName}`);
+        console.log(`  Warning: Model ${modelName} not found`);
         return null;
     }
 
-    // 查找数据集ID
+    // Find dataset ID
     const dataset = await prisma.dataset.findFirst();
     if (!dataset) {
-        console.log(`  警告: 找不到数据集`);
+        console.log(`  Warning: Dataset not found`);
         return null;
     }
 
-    // 创建运行记录
+    // Create run record
     const run = await prisma.run.create({
         data: {
             id: runId,
@@ -91,7 +91,7 @@ async function restoreTrainingRun(runId, runDir) {
         }
     });
 
-    // 创建 LoRA 统计
+    // Create LoRA statistics
     if (experimentLog?.lora_stats) {
         const loraStats = experimentLog.lora_stats;
         await prisma.loraStats.create({
@@ -108,7 +108,7 @@ async function restoreTrainingRun(runId, runDir) {
         });
     }
 
-    // 创建实验元数据
+    // Create experiment metadata
     if (experimentLog?.environment || experimentLog?.hardware) {
         const env = experimentLog.environment || {};
         const hw = experimentLog.hardware || {};
@@ -134,7 +134,7 @@ async function restoreTrainingRun(runId, runDir) {
         });
     }
 
-    // 创建数据集元数据
+    // Create dataset metadata
     if (experimentLog?.dataset_info) {
         const di = experimentLog.dataset_info;
         await prisma.datasetMeta.create({
@@ -161,17 +161,17 @@ async function restoreTrainingRun(runId, runDir) {
     return run;
 }
 
-// 恢复评估记录
+// Restore evaluation run
 async function restoreEvalRun(runId, runDir) {
     const evalConfig = readJson(path.join(runDir, 'eval_config.json'));
     const evalSummary = readJson(path.join(runDir, 'eval_summary.json'));
 
     if (!evalConfig && !evalSummary) {
-        console.log(`  跳过 ${runId}: 无评估配置文件`);
+        console.log(`  Skip ${runId}: No evaluation config file`);
         return null;
     }
 
-    // 查找模型
+    // Find model
     let modelName = 'Unknown Model';
     if (evalConfig?.modelPath) {
         modelName = path.basename(evalConfig.modelPath);
@@ -184,18 +184,18 @@ async function restoreEvalRun(runId, runDir) {
     });
 
     if (!model) {
-        console.log(`  警告: 找不到模型 ${modelName}`);
+        console.log(`  Warning: Model ${modelName} not found`);
         return null;
     }
 
-    // 查找数据集
+    // Find dataset
     const dataset = await prisma.dataset.findFirst();
     if (!dataset) {
-        console.log(`  警告: 找不到数据集`);
+        console.log(`  Warning: Dataset not found`);
         return null;
     }
 
-    // 获取源训练运行ID
+    // Get source training run ID
     let sourceRunId = null;
     if (evalConfig?.adapterPath) {
         const match = evalConfig.adapterPath.match(/run_([a-f0-9]+)/);
@@ -204,7 +204,7 @@ async function restoreEvalRun(runId, runDir) {
         }
     }
 
-    // 提取指标
+    // Extract metrics
     const metrics = evalSummary?.metrics_overall || {};
 
     const run = await prisma.run.create({
@@ -234,7 +234,7 @@ async function restoreEvalRun(runId, runDir) {
         }
     });
 
-    // 创建实验元数据
+    // Create experiment metadata
     if (evalSummary?.environment) {
         const env = evalSummary.environment;
         await prisma.experimentMeta.create({
@@ -257,16 +257,16 @@ async function restoreEvalRun(runId, runDir) {
 }
 
 async function main() {
-    console.log('=== 开始恢复历史运行记录 ===\n');
+    console.log('=== Start Restoring Historical Run Records ===\n');
 
-    // 读取 runs 目录
+    // Read runs directory
     if (!fs.existsSync(RUNS_DIR)) {
-        console.log('错误: storage/runs 目录不存在');
+        console.log('Error: storage/runs directory does not exist');
         return;
     }
 
     const runDirs = fs.readdirSync(RUNS_DIR).filter(d => d.startsWith('run_'));
-    console.log(`找到 ${runDirs.length} 个运行目录\n`);
+    console.log(`Found ${runDirs.length} run directories\n`);
 
     let restoredCount = 0;
     let skippedCount = 0;
@@ -274,28 +274,28 @@ async function main() {
     for (const runId of runDirs) {
         const runDir = path.join(RUNS_DIR, runId);
 
-        // 检查是否已存在
+        // Check if already exists
         const existing = await prisma.run.findUnique({ where: { id: runId } });
         if (existing) {
-            console.log(`[跳过] ${runId}: 已存在`);
+            console.log(`[Skip] ${runId}: Already exists`);
             skippedCount++;
             continue;
         }
 
-        // 判断是训练还是评估
+        // Determine if training or evaluation
         const hasExperimentLog = fs.existsSync(path.join(runDir, 'experiment_log.json'));
         const hasEvalSummary = fs.existsSync(path.join(runDir, 'eval_summary.json'));
         const hasEvalConfig = fs.existsSync(path.join(runDir, 'eval_config.json'));
 
         let result = null;
         if (hasExperimentLog) {
-            console.log(`[恢复] ${runId}: 训练记录`);
+            console.log(`[Restore] ${runId}: Training record`);
             result = await restoreTrainingRun(runId, runDir);
         } else if (hasEvalSummary || hasEvalConfig) {
-            console.log(`[恢复] ${runId}: 评估记录`);
+            console.log(`[Restore] ${runId}: Evaluation record`);
             result = await restoreEvalRun(runId, runDir);
         } else {
-            console.log(`[跳过] ${runId}: 无可识别的配置文件`);
+            console.log(`[Skip] ${runId}: No recognizable config file`);
             skippedCount++;
             continue;
         }
@@ -305,9 +305,9 @@ async function main() {
         }
     }
 
-    console.log(`\n=== 恢复完成 ===`);
-    console.log(`成功恢复: ${restoredCount} 个`);
-    console.log(`跳过: ${skippedCount} 个`);
+    console.log(`\n=== Restore Complete ===`);
+    console.log(`Successfully restored: ${restoredCount}`);
+    console.log(`Skipped: ${skippedCount}`);
 }
 
 main()

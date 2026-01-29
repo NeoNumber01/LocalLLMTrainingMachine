@@ -21,11 +21,11 @@ interface NotificationRecord {
 
 export async function notificationsRoutes(fastify: FastifyInstance) {
 
-    // GET /api/notifications - 获取通知列表
+    // GET /api/notifications - Get notification list
     fastify.get('/', {
         schema: {
             tags: ['Notifications'],
-            summary: '获取通知列表',
+            summary: 'Get notification list',
             querystring: {
                 type: 'object',
                 properties: {
@@ -56,22 +56,22 @@ export async function notificationsRoutes(fastify: FastifyInstance) {
         }));
     });
 
-    // GET /api/notifications/unread-count - 获取未读通知数量
+    // GET /api/notifications/unread-count - Get unread notification count
     fastify.get('/unread-count', {
         schema: {
             tags: ['Notifications'],
-            summary: '获取未读通知数量',
+            summary: 'Get unread notification count',
         },
     }, async (request, reply) => {
         const count = await getUnreadCount();
         return { count };
     });
 
-    // POST /api/notifications/:id/read - 标记单条通知为已读
+    // POST /api/notifications/:id/read - Mark single notification as read
     fastify.post<{ Params: { id: string } }>('/:id/read', {
         schema: {
             tags: ['Notifications'],
-            summary: '标记通知为已读',
+            summary: 'Mark notification as read',
             params: {
                 type: 'object',
                 properties: { id: { type: 'string' } },
@@ -86,22 +86,22 @@ export async function notificationsRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // POST /api/notifications/read-all - 标记所有通知为已读
+    // POST /api/notifications/read-all - Mark all notifications as read
     fastify.post('/read-all', {
         schema: {
             tags: ['Notifications'],
-            summary: '标记所有通知为已读',
+            summary: 'Mark all notifications as read',
         },
     }, async (request, reply) => {
         const result = await markAllAsRead();
         return { success: true, count: result.count };
     });
 
-    // DELETE /api/notifications/:id - 删除单条通知
+    // DELETE /api/notifications/:id - Delete single notification
     fastify.delete<{ Params: { id: string } }>('/:id', {
         schema: {
             tags: ['Notifications'],
-            summary: '删除通知',
+            summary: 'Delete notification',
             params: {
                 type: 'object',
                 properties: { id: { type: 'string' } },

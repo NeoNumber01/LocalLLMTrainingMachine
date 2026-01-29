@@ -1,6 +1,6 @@
 """
-规则修复模块
-基于规则的自动代码修复，参考 LeoLLM 的成功实现
+Rule-based Fixer Module
+Automatic code fixing based on rules, referenced from LeoLLM's successful implementation
 """
 
 import ast
@@ -16,38 +16,38 @@ logger = logging.getLogger(__name__)
 
 class RuleFixer:
     """
-    规则修复器
+    Rule-based Fixer
     
-    实现高频错误的自动修复策略：
-    1. 缩进错误修复
-    2. 缺失 import 补全
-    3. 接口不符合修复
-    4. 空数组崩溃兜底
-    5. 递归保护
-    6. 语法错误修复（括号、冒号等）
+    Implements automatic fixing strategies for common errors:
+    1. Indentation error fixing
+    2. Missing import completion
+    3. Interface non-compliance fixing
+    4. Empty array crash fallback
+    5. Recursion protection
+    6. Syntax error fixing (parentheses, colons, etc.)
     """
     
     def __init__(self):
-        """初始化修复器"""
+        """Initialize fixer"""
         self._fix_history: List[str] = []
     
     def fix(self, code: str, error_type: ErrorType, error_message: str,
             signature: str = "def solve(nums: list[int]) -> int:") -> Tuple[str, List[str]]:
         """
-        根据错误类型尝试修复代码
+        Attempt to fix code based on error type
         
         Args:
-            code: 待修复代码
-            error_type: 错误类型
-            error_message: 错误消息
-            signature: 期望的函数签名
+            code: Code to fix
+            error_type: Error type
+            error_message: Error message
+            signature: Expected function signature
             
         Returns:
-            (修复后的代码, 应用的修复列表)
+            (fixed code, list of fixes applied)
         """
         self._fix_history = []
         
-        # 根据错误类型选择修复策略
+        # Choose fixing strategy based on error type
         if error_type == ErrorType.SYNTAX_ERROR:
             code = self._fix_syntax_error(code, error_message, signature)
         elif error_type == ErrorType.INDENTATION_ERROR:
@@ -67,56 +67,56 @@ class RuleFixer:
     
     def fix_all(self, code: str, signature: str = "def solve(nums: list[int]) -> int:") -> Tuple[str, List[str]]:
         """
-        应用所有可能的预防性修复
+        Apply all possible preventive fixes
         
         Args:
-            code: 待修复代码
-            signature: 期望的函数签名
+            code: Code to fix
+            signature: Expected function signature
             
         Returns:
-            (修复后的代码, 应用的修复列表)
+            (fixed code, list of fixes applied)
         """
         self._fix_history = []
         
-        # 1. 缩进规范化
+        # 1. Normalize indentation
         code = self._normalize_indentation(code)
         
-        # 2. 语法修复
+        # 2. Syntax fixes
         code = self._fix_syntax_iterative(code, signature)
         
-        # 3. 自动 import
+        # 3. Auto import
         code = self._auto_import(code)
         
-        # 4. 空输入兜底
+        # 4. Empty input fallback
         code = self._add_empty_input_guard(code, signature)
         
-        # 5. 递归保护
+        # 5. Recursion protection
         code = self._add_recursion_guard(code)
         
         return code, self._fix_history
     
     # =========================================================================
-    # 语法错误修复
+    # Syntax Error Fixing
     # =========================================================================
     def _fix_syntax_error(self, code: str, error_message: str, signature: str) -> str:
-        """修复语法错误"""
+        """Fix syntax errors"""
         return self._fix_syntax_iterative(code, signature, max_attempts=3)
     
     def _fix_syntax_iterative(self, code: str, signature: str, max_attempts: int = 3) -> str:
-        """迭代修复语法错误（参考 LeoLLM Phase 12）"""
+        """Iteratively fix syntax errors (referenced from LeoLLM Phase 12)"""
         for attempt in range(max_attempts):
             try:
                 ast.parse(code)
-                return code  # 代码有效
+                return code  # Code is valid
             except SyntaxError as e:
-                logger.debug(f"语法修复尝试 {attempt + 1}: {e}")
+                logger.debug(f"Syntax fix attempt {attempt + 1}: {e}")
                 code = self._attempt_syntax_fix(code, e, signature)
         
         return code
     
     def _attempt_syntax_fix(self, code: str, error: SyntaxError, signature: str) -> str:
         """
-        根据语法错误尝试修复（参考 LeoLLM）
+        Attempt to fix based on syntax error (referenced from LeoLLM)
         """
         lines = code.split('\n')
         error_msg = str(error).lower()
@@ -130,23 +130,23 @@ class RuleFixer:
         
         problem_line = lines[line_idx]
         
-        # 缺少冒号
+        # Missing colon
         if 'expected ":"' in str(error) or "expected ':'" in str(error):
             if not problem_line.rstrip().endswith(':'):
                 lines[line_idx] = problem_line.rstrip() + ':'
-                self._fix_history.append("添加缺失的冒号")
+                self._fix_history.append("Added missing colon")
                 return '\n'.join(lines)
         
-        # 签名语法错误
+        # Signature syntax error
         if 'invalid syntax' in error_msg and 'def solve' in problem_line:
             expected_sig = signature.strip()
             if not expected_sig.endswith(':'):
                 expected_sig += ':'
             lines[line_idx] = expected_sig
-            self._fix_history.append("修复函数签名")
+            self._fix_history.append("Fixed function signature")
             return '\n'.join(lines)
         
-        # 意外的 EOF - 括号不平衡
+        # Unexpected EOF - unbalanced brackets
         if 'unexpected eof' in error_msg or 'eof while scanning' in error_msg:
             open_count = code.count('(') - code.count(')')
             close_count = code.count('[') - code.count(']')
@@ -158,23 +158,23 @@ class RuleFixer:
             
             if suffix:
                 code = code.rstrip() + suffix
-                self._fix_history.append(f"补全括号: {suffix}")
+                self._fix_history.append(f"Completed brackets: {suffix}")
                 return code
             
-            # 检查未闭合字符串
+            # Check unclosed strings
             single_quotes = code.count("'") - code.count("\\'")
             double_quotes = code.count('"') - code.count('\\"')
             
             if single_quotes % 2 != 0:
                 code = code.rstrip() + "'"
-                self._fix_history.append("闭合单引号字符串")
+                self._fix_history.append("Closed single quote string")
                 return code
             if double_quotes % 2 != 0:
                 code = code.rstrip() + '"'
-                self._fix_history.append("闭合双引号字符串")
+                self._fix_history.append("Closed double quote string")
                 return code
         
-        # 缩进错误
+        # Indentation error
         if 'indent' in error_msg:
             if line_idx > 0:
                 prev_line = lines[line_idx - 1]
@@ -186,54 +186,54 @@ class RuleFixer:
                 else:
                     lines[line_idx] = ' ' * prev_indent + current_stripped
                 
-                self._fix_history.append(f"修复第 {error.lineno} 行缩进")
+                self._fix_history.append(f"Fixed line {error.lineno} indentation")
                 return '\n'.join(lines)
         
-        # 未终结字符串
+        # Unterminated string
         if 'unterminated string' in error_msg:
             if problem_line.count('"') % 2 != 0:
                 lines[line_idx] = problem_line.rstrip() + '"'
-                self._fix_history.append("闭合字符串")
+                self._fix_history.append("Closed string")
                 return '\n'.join(lines)
             if problem_line.count("'") % 2 != 0:
                 lines[line_idx] = problem_line.rstrip() + "'"
-                self._fix_history.append("闭合字符串")
+                self._fix_history.append("Closed string")
                 return '\n'.join(lines)
         
-        # 不匹配的括号
+        # Unmatched brackets
         if 'unmatched' in error_msg:
             if ')' in problem_line and '(' not in problem_line:
                 lines[line_idx] = problem_line.replace(')', '', 1)
-                self._fix_history.append("移除多余的 )")
+                self._fix_history.append("Removed extra )")
                 return '\n'.join(lines)
             if ']' in problem_line and '[' not in problem_line:
                 lines[line_idx] = problem_line.replace(']', '', 1)
-                self._fix_history.append("移除多余的 ]")
+                self._fix_history.append("Removed extra ]")
                 return '\n'.join(lines)
             if '}' in problem_line and '{' not in problem_line:
                 lines[line_idx] = problem_line.replace('}', '', 1)
-                self._fix_history.append("移除多余的 }")
+                self._fix_history.append("Removed extra }")
                 return '\n'.join(lines)
         
-        # 无效字符
+        # Invalid character
         if 'invalid character' in error_msg:
             cleaned = ''.join(c if c.isascii() and (c.isprintable() or c in '\t\n') else '' for c in problem_line)
             lines[line_idx] = cleaned
-            self._fix_history.append("移除无效字符")
+            self._fix_history.append("Removed invalid characters")
             return '\n'.join(lines)
         
         return code
     
     # =========================================================================
-    # 缩进修复
+    # Indentation Fixing
     # =========================================================================
     def _fix_indentation(self, code: str, error_message: str) -> str:
-        """修复缩进错误"""
+        """Fix indentation errors"""
         code = self._normalize_indentation(code)
         return code
     
     def _normalize_indentation(self, code: str) -> str:
-        """规范化缩进"""
+        """Normalize indentation"""
         lines = code.split('\n')
         result = []
         
@@ -245,29 +245,29 @@ class RuleFixer:
             stripped = line.lstrip()
             leading = line[:len(line) - len(stripped)]
             
-            # Tab 转 4 空格
+            # Tab to 4 spaces
             original_leading = leading
             leading = leading.replace('\t', '    ')
             
-            # 2 空格转 4 空格
+            # 2 spaces to 4 spaces
             space_count = len(leading)
             if space_count > 0 and space_count % 2 == 0 and space_count % 4 != 0:
                 leading = ' ' * (space_count * 2)
             
             if leading != original_leading:
-                if "规范化缩进" not in self._fix_history:
-                    self._fix_history.append("规范化缩进")
+                if "Normalized indentation" not in self._fix_history:
+                    self._fix_history.append("Normalized indentation")
             
             result.append(leading + stripped)
         
         return '\n'.join(result)
     
     # =========================================================================
-    # Name Error 修复（自动 import）
+    # Name Error Fixing (Auto Import)
     # =========================================================================
     def _fix_name_error(self, code: str, error_message: str) -> str:
-        """修复 NameError - 自动 import"""
-        # 从错误消息中提取未定义的名称
+        """Fix NameError - auto import"""
+        # Extract undefined name from error message
         match = re.search(r"name '(\w+)' is not defined", error_message)
         if match:
             undefined_name = match.group(1)
@@ -277,7 +277,7 @@ class RuleFixer:
         return code
     
     def _add_import_for_name(self, code: str, name: str) -> str:
-        """为特定名称添加 import"""
+        """Add import for specific name"""
         from .import_registry import IMPORT_REGISTRY
         
         if name in IMPORT_REGISTRY:
@@ -287,15 +287,15 @@ class RuleFixer:
             else:
                 import_stmt = f"import {module}"
             
-            # 避免重复添加
+            # Avoid duplicate additions
             if import_stmt not in code:
                 code = import_stmt + "\n" + code
-                self._fix_history.append(f"添加 import: {import_stmt}")
+                self._fix_history.append(f"Added import: {import_stmt}")
         
         return code
     
     def _auto_import(self, code: str) -> str:
-        """自动补全所有缺失的 import"""
+        """Auto-complete all missing imports"""
         required = get_required_imports(code)
         
         if not required:
@@ -304,7 +304,7 @@ class RuleFixer:
         import_block = generate_import_statements(required)
         
         if import_block:
-            # 检查已有 import
+            # Check existing imports
             lines = code.split('\n')
             insert_pos = 0
             
@@ -320,16 +320,16 @@ class RuleFixer:
                 lines.insert(insert_pos, '')
             
             code = '\n'.join(lines)
-            self._fix_history.append(f"自动 import: {', '.join(required)}")
+            self._fix_history.append(f"Auto import: {', '.join(required)}")
         
         return code
     
     # =========================================================================
-    # Import Error 修复
+    # Import Error Fixing
     # =========================================================================
     def _fix_import_error(self, code: str, error_message: str) -> str:
-        """修复 ImportError"""
-        # 尝试移除有问题的 import
+        """Fix ImportError"""
+        # Try to remove problematic import
         match = re.search(r"No module named '(\w+)'", error_message)
         if match:
             bad_module = match.group(1)
@@ -339,33 +339,33 @@ class RuleFixer:
                 if f"import {bad_module}" not in line and f"from {bad_module}" not in line:
                     new_lines.append(line)
                 else:
-                    self._fix_history.append(f"移除无效 import: {bad_module}")
+                    self._fix_history.append(f"Removed invalid import: {bad_module}")
             code = '\n'.join(new_lines)
         return code
     
     # =========================================================================
-    # Index Error 修复（空输入兜底）
+    # Index Error Fixing (Empty Input Fallback)
     # =========================================================================
     def _fix_index_error(self, code: str, signature: str) -> str:
-        """修复 IndexError - 添加空输入检查"""
+        """Fix IndexError - add empty input check"""
         return self._add_empty_input_guard(code, signature)
     
     def _add_empty_input_guard(self, code: str, signature: str) -> str:
-        """添加空输入检查"""
-        # 检查是否已有空输入检查
+        """Add empty input check"""
+        # Check if empty input check already exists
         if "if not nums" in code or "if len(nums) == 0" in code or "if nums == []" in code:
             return code
         
-        # 从签名中提取参数名和返回类型
+        # Extract parameter name and return type from signature
         param_name = "nums"
         default_return = "0"
         
-        # 尝试从签名提取参数名
+        # Try to extract parameter name from signature
         param_match = re.search(r'def\s+\w+\s*\((\w+)', signature)
         if param_match:
             param_name = param_match.group(1)
         
-        # 尝试从签名提取返回类型
+        # Try to extract return type from signature
         return_match = re.search(r'->\s*(\w+)', signature)
         if return_match:
             return_type = return_match.group(1)
@@ -382,46 +382,46 @@ class RuleFixer:
             elif return_type in ("dict", "Dict"):
                 default_return = "{}"
         
-        # 找到函数体开始位置并插入检查
+        # Find function body start and insert check
         lines = code.split('\n')
         for i, line in enumerate(lines):
             if line.strip().startswith('def ') and ':' in line:
-                # 找到函数定义后的第一个非空行
+                # Find first non-empty line after function definition
                 for j in range(i + 1, len(lines)):
                     if lines[j].strip():
                         indent = len(lines[j]) - len(lines[j].lstrip())
                         guard = ' ' * indent + f"if not {param_name}: return {default_return}"
                         lines.insert(j, guard)
-                        self._fix_history.append(f"添加空输入检查: if not {param_name}")
+                        self._fix_history.append(f"Added empty input check: if not {param_name}")
                         return '\n'.join(lines)
                 break
         
         return code
     
     # =========================================================================
-    # 递归保护
+    # Recursion Protection
     # =========================================================================
     def _fix_recursion_error(self, code: str) -> str:
-        """修复 RecursionError"""
+        """Fix RecursionError"""
         return self._add_recursion_guard(code)
     
     def _add_recursion_guard(self, code: str) -> str:
-        """添加递归限制"""
+        """Add recursion limit"""
         if "setrecursionlimit" in code:
             return code
         
-        # 检测是否有递归
+        # Detect if there's recursion
         if not self._has_recursion(code):
             return code
         
-        # 添加递归限制
+        # Add recursion limit
         code = "import sys\nsys.setrecursionlimit(10**7)\n\n" + code
-        self._fix_history.append("添加递归限制: setrecursionlimit(10**7)")
+        self._fix_history.append("Added recursion limit: setrecursionlimit(10**7)")
         
         return code
     
     def _has_recursion(self, code: str) -> bool:
-        """检测代码是否包含递归"""
+        """Detect if code contains recursion"""
         try:
             tree = ast.parse(code)
             for node in ast.walk(tree):
@@ -432,66 +432,66 @@ class RuleFixer:
                             if isinstance(child.func, ast.Name) and child.func.id == func_name:
                                 return True
         except SyntaxError:
-            # 使用简单启发式
+            # Use simple heuristic
             pattern = r'def\s+(\w+).*?\1\s*\('
             return bool(re.search(pattern, code, re.DOTALL))
         return False
     
     # =========================================================================
-    # 接口修复
+    # Interface Fixing
     # =========================================================================
     def _fix_interface_error(self, code: str, signature: str) -> str:
-        """修复接口不符合"""
+        """Fix interface non-compliance"""
         expected_sig = signature.strip()
         if not expected_sig.endswith(':'):
             expected_sig += ':'
         
-        # 检查是否有 solve 函数
+        # Check if there's a solve function
         if 'def solve' not in code:
-            # 尝试找其他函数并包装
+            # Try to find other functions and wrap
             func_match = re.search(r'def\s+(\w+)\s*\([^)]*\)', code)
             if func_match:
                 other_func = func_match.group(1)
                 wrapper = f"{expected_sig}\n    return {other_func}(nums)\n\n"
                 code = wrapper + code
-                self._fix_history.append(f"包装 {other_func} 为 solve")
+                self._fix_history.append(f"Wrapped {other_func} as solve")
             else:
-                # 没有函数，创建占位
+                # No function, create placeholder
                 code = f"{expected_sig}\n    pass\n\n" + code
-                self._fix_history.append("创建 solve 占位函数")
+                self._fix_history.append("Created solve placeholder function")
         
         return code
     
     # =========================================================================
-    # 智能回退生成（参考 LeoLLM Phase 14）
+    # Smart Fallback Generation (referenced from LeoLLM Phase 14)
     # =========================================================================
     def generate_fallback(self, code: str, signature: str) -> str:
         """
-        当所有修复失败时，尝试生成一个可运行的回退代码
+        When all fixes fail, try to generate a runnable fallback code
         """
-        # 首先检查代码是否有效
+        # First check if code is valid
         try:
             ast.parse(code)
             return code
         except SyntaxError:
-            logger.warning("代码仍无效，尝试生成回退")
+            logger.warning("Code still invalid, trying to generate fallback")
         
-        # 尝试提取 return 逻辑
+        # Try to extract return logic
         returns = self._extract_return_expressions(code)
         if returns:
             fallback = self._build_from_returns(signature, returns)
             try:
                 ast.parse(fallback)
-                self._fix_history.append("使用 return 逻辑生成回退代码")
+                self._fix_history.append("Generated fallback code using return logic")
                 return fallback
             except SyntaxError:
                 pass
         
-        # 最后手段：返回类型默认值
+        # Last resort: return type default value
         return self._type_based_default(signature)
     
     def _extract_return_expressions(self, code: str) -> List[str]:
-        """提取 return 表达式"""
+        """Extract return expressions"""
         returns = []
         for line in code.split('\n'):
             stripped = line.strip()
@@ -502,7 +502,7 @@ class RuleFixer:
         return returns
     
     def _build_from_returns(self, signature: str, returns: List[str]) -> str:
-        """从 return 表达式构建代码"""
+        """Build code from return expressions"""
         sig = signature.strip()
         if not sig.endswith(':'):
             sig += ':'
@@ -511,12 +511,12 @@ class RuleFixer:
         return f"{sig}\n    return {first_return}\n"
     
     def _type_based_default(self, signature: str) -> str:
-        """根据返回类型生成默认实现"""
+        """Generate default implementation based on return type"""
         sig = signature.strip()
         if not sig.endswith(':'):
             sig += ':'
         
-        # 解析返回类型
+        # Parse return type
         return_match = re.search(r'->\s*([^:]+):', sig)
         if return_match:
             return_type = return_match.group(1).strip()
@@ -533,5 +533,5 @@ class RuleFixer:
             elif 'dict' in return_type.lower():
                 return f"{sig}\n    return {{}}\n"
         
-        # 默认返回 None
+        # Default return None
         return f"{sig}\n    return None\n"

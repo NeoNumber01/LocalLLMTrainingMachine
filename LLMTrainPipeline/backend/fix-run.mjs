@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 async function fixRun() {
     const runId = 'run_12949';
 
-    // 读取 experiment_log.json 获取正确的训练时间
+    // Read experiment_log.json to get correct training time
     const fs = await import('fs');
     const path = await import('path');
 
@@ -19,7 +19,7 @@ async function fixRun() {
         console.log('Loaded experiment log:', { gpuHours, totalSteps });
     }
 
-    // 获取最后一个有效的 loss 值
+    // Get the last valid loss value
     const metrics = await prisma.runMetric.findMany({
         where: { runId },
         orderBy: { step: 'desc' },
@@ -39,13 +39,13 @@ async function fixRun() {
     }
     console.log('Final loss:', finalLoss);
 
-    // 计算训练时长
+    // Calculate training duration
     const durationHours = gpuHours;
     const hours = Math.floor(durationHours);
     const minutes = Math.floor((durationHours - hours) * 60);
     const duration = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 
-    // 更新 Run 状态
+    // Update Run status
     const updated = await prisma.run.update({
         where: { id: runId },
         data: {
@@ -63,7 +63,7 @@ async function fixRun() {
 
     console.log('Updated run:', updated.id, 'to status:', updated.status, 'duration:', updated.duration);
 
-    // 尝试保存 LoRA 统计（使用 BigInt）
+    // Try to save LoRA statistics (using BigInt)
     const loraStats = {
         runId,
         rank: 16,

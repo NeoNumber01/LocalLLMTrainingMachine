@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-LLM 推理脚本 - 用于 Playground 功能 (支持流式输出)
-使用 transformers 库加载本地模型进行推理
+LLM Inference Script - For Playground functionality (supports streaming output)
+Uses transformers library to load local model for inference
 """
 
 import json
@@ -12,7 +12,7 @@ from threading import Thread
 
 
 def load_model(model_path: str):
-    """加载模型和tokenizer
+    """Load model and tokenizer
     
     Fixed for bitsandbytes compatibility - uses device_map='auto'
     """
@@ -60,7 +60,7 @@ def load_model(model_path: str):
 
 
 def format_messages(tokenizer, system_prompt: str, messages: list) -> str:
-    """格式化消息为模型输入"""
+    """Format messages for model input"""
     formatted_messages = []
     
     if system_prompt:
@@ -91,7 +91,7 @@ def format_messages(tokenizer, system_prompt: str, messages: list) -> str:
 def generate_stream(model, tokenizer, prompt: str, max_new_tokens: int = 512,
                     temperature: float = 0.7, top_p: float = 0.9,
                     repetition_penalty: float = 1.1):
-    """流式生成回复 - Enhanced with repetition_penalty"""
+    """Stream generate response - Enhanced with repetition_penalty"""
     from transformers import TextIteratorStreamer
     
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -127,7 +127,7 @@ def generate_stream(model, tokenizer, prompt: str, max_new_tokens: int = 512,
 
 
 def main():
-    """主函数"""
+    """Main function"""
     try:
         request = json.loads(sys.stdin.read())
         
