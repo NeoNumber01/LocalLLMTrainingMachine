@@ -2,7 +2,7 @@
 
 > **Project Name**: CodeT5 Java→C# Code Translation System + LLM Training Pipeline  
 > **Research Area**: Cross-lingual Code Translation Based on Large Language Models  
-> **Last Updated**: 2026-01-29
+> **Last Updated**: 2026-02-25
 
 ---
 
@@ -206,14 +206,218 @@ python3 generate_report.py
 
 ## 🚀 LLMTrainPipeline: LLM Training Pipeline
 
+### System Architecture Overview
+
+LLMTrainPipeline is an end-to-end LLM fine-tuning and evaluation platform built on a **3-tier architecture**. It transforms the traditionally command-line-driven ML workflow into a fully visual, real-time monitored, queue-managed pipeline.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                        LLMTrainPipeline Architecture                          │
+├────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │  Frontend Layer (React + TypeScript + Vite + TailwindCSS)               │   │
+│  │                                                                         │   │
+│  │  Dashboard │ NewRun │ RunDetail │ Evaluation │ EvalDetail │ Playground  │   │
+│  │  Models │ Datasets │ Adapters │ Compare │ Reports │ Settings            │   │
+│  └────────────────────────────────┬────────────────────────────────────────┘   │
+│                                   │ REST API + SSE (Server-Sent Events)         │
+│  ┌────────────────────────────────▼────────────────────────────────────────┐   │
+│  │  Backend Layer (Node.js + Fastify + TypeScript + Prisma/SQLite)         │   │
+│  │                                                                         │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │   │
+│  │  │ RunExecutor   │  │ AcademicReport│  │ SystemMonitor│                  │   │
+│  │  │ (Queue + SSE) │  │ Generator     │  │ (GPU/CPU/RAM)│                  │   │
+│  │  └──────┬───────┘  └──────────────┘  └──────────────┘                  │   │
+│  │         │                                                               │   │
+│  │  ┌──────▼────────────────────── Provider Factory ──────────────────┐    │   │
+│  │  │ ComputeProvider │ TrainerProvider │ EvalProvider │ ArtifactStore │    │   │
+│  │  │ CacheProvider   │ Scanner                                       │    │   │
+│  │  └──────┬──────────────────────────────────────────────────────────┘    │   │
+│  └─────────┼──────────────────────────────────────────────────────────────┘   │
+│            │ Child Process (stdin/stdout JSON events)                          │
+│  ┌─────────▼──────────────────────────────────────────────────────────────┐   │
+│  │  Python ML Layer (PyTorch + Transformers + PEFT + TRL)                  │   │
+│  │                                                                         │   │
+│  │  train.py ──── FormatRegistry (20+ formats auto-detection)              │   │
+│  │  eval.py  ──── PostProcess Pipeline (extractor → fixer → normalizer)    │   │
+│  │  infer.py ──── report_generator.py (HTML/Markdown reports)              │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### Tech Stack
 
 | Layer | Technology | Description |
 |-------|------------|-------------|
-| **Frontend** | React + TypeScript + Vite + TailwindCSS | Modern UI |
-| **Backend** | Node.js + Fastify + TypeScript + Prisma | REST API |
-| **ML** | Python + PyTorch + Transformers + PEFT | LoRA Training |
-| **Database** | SQLite | Lightweight storage |
+| **Frontend** | React + TypeScript + Vite + TailwindCSS | 13-page SPA with real-time SSE updates |
+| **Backend** | Node.js + Fastify + TypeScript + Prisma | 13 REST API route groups + OpenAPI/Swagger docs |
+| **ML Engine** | Python + PyTorch + Transformers + PEFT + TRL | LoRA/QLoRA training + Pass@k evaluation |
+| **Database** | SQLite (via Prisma ORM) | 14 models: Run, RunEvent, RunMetric, Model, Dataset, Adapter, etc. |
+| **Monitoring** | nvidia-smi + os module | Real-time GPU/CPU/RAM/Storage dashboard |
+
+### Working Principles: How the Pipeline Runs
+
+#### 1. Provider Factory Pattern (Core Design)
+
+The backend uses a **Factory + Strategy Pattern** to decouple infrastructure concerns from business logic. The `ProviderFactory` dynamically instantiates the right implementation based on configuration:
+
+| Provider | Interface | Implementations | Purpose |
+|----------|-----------|-----------------|---------|
+| **ComputeProvider** | `prepare()` → `execute()` → `cleanup()` | `LocalSingleCompute` | GPU resource management |
+| **TrainerProvider** | `train(config)` → `AsyncGenerator<TrainEvent>` | `LoraTrainer`, `FullFinetuneTrainer` | Model training execution |
+| **EvalProvider** | `evaluateStream(config)` → `AsyncGenerator<EvalEvent>` | `CodePassKEval` | Code evaluation execution |
+| **ArtifactStore** | `save()` / `get()` / `list()` | `FilesystemStore` | Training artifacts persistence |
+| **CacheProvider** | `get<T>()` / `set<T>()` | `MemoryTtlCache`, `SqliteCacheProvider` | Response caching |
+| **Scanner** | `scanModels()` / `scanDatasets()` / `scanAdapters()` | `FileScanner` | Auto-discover local resources |
+
+This means the system is **easily extensible** — e.g., adding cloud GPU support only requires implementing a new `ComputeProvider`.
+
+#### 2. Run Executor: Queue-Based Pipeline Orchestration
+
+The `RunExecutor` (~1500 lines) is the central orchestrator managing the entire lifecycle of training/evaluation runs:
+
+```
+User clicks "Start Training"
+        │
+        ▼
+  ┌─── enqueueRun() ───┐
+  │  Create DB record    │
+  │  Status = "queued"   │
+  │  Assign queue pos    │
+  └──────┬───────────────┘
+         │
+         ▼
+  ┌─── processQueue() ──┐     (respects maxSimultaneousRuns setting)
+  │  Check concurrency   │
+  │  Dequeue next run    │
+  └──────┬───────────────┘
+         │
+         ▼
+  ┌─── executeRun() ────────────────────────────────────────────┐
+  │  Phase 1: Resolve config (model path, dataset, adapters)     │
+  │  Phase 2: Spawn Python child process (train.py / eval.py)    │
+  │  Phase 3: Parse stdout JSON events in real-time              │
+  │     ├── "metric" events  → RunMetric DB + SSE to frontend    │
+  │     ├── "checkpoint" events → Log + adapter registration     │
+  │     ├── "experiment_log" → ExperimentMeta DB record           │
+  │     ├── "data_quality" → DatasetMeta DB record                │
+  │     ├── "training_summary" → LoraStats DB record              │
+  │     └── "log" events → Batch buffer (flush every 2s / 50 items) │
+  │  Phase 4: Save final adapter, generate report                 │
+  │  Phase 5: Cleanup checkpoints, update status                  │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+**Key features:**
+- **Batch Log Buffering**: Uses a `LogEventBuffer` (flush threshold: 50 events or 2s interval) to solve SQLite high-frequency write pressure
+- **Queue Persistence**: Queued runs are restored after server restart via `restoreQueue()`
+- **Adapter Safety Guard**: `validateAdaptersOnStartup()` checks all registered adapters for path integrity
+- **Concurrent Run Support**: Configurable `maxSimultaneousRuns` setting
+
+#### 3. Training Module (train.py — 926 lines)
+
+Built on **TRL SFTTrainer + QLoRA**, the training module features:
+
+- **Automatic Dataset Format Detection**: The `FormatRegistry` (1055 lines, 20+ formats) auto-detects and converts:
+  - **Conversation types**: Standard messages, ShareGPT, OpenAI ChatML, Dialog turns, History+Response
+  - **Instruction types**: Alpaca, Dolly, WizardLM, OASST
+  - **Code types**: Code instruction, code completion, code review
+  - **Task-specific**: Chain-of-thought, SQL generation, math solving, summarization, translation
+  - **Fallback**: Raw text_only format
+
+- **Smart Training Method Selection**:
+  ```
+  TRL available? ─── Yes ──→ SFTTrainer (automatic loss masking on assistant tokens only)
+                └── No  ──→ Standard HuggingFace Trainer (fallback)
+  ```
+
+- **Real-time Event Streaming**: A custom `TrainingEventCallback` emits JSON events to stdout, which are parsed by the TypeScript backend and forwarded to the frontend via SSE:
+  ```json
+  {"type": "metric", "step": 100, "loss": 1.23, "lr": 3e-5, "epoch": 0.5}
+  {"type": "checkpoint", "step": 500, "path": "/storage/runs/run-001/checkpoint-500"}
+  ```
+
+- **QLoRA Configuration**: Automatic 4-bit/8-bit quantization with NF4, double quantization, FP16 compute dtype
+
+#### 4. Evaluation Module (eval.py — 2139 lines)
+
+A comprehensive code generation evaluation system:
+
+- **Pass@k Metric**: Unbiased estimator for k=1,5,10 using the formula:
+  `pass@k = 1 - C(n-c, k) / C(n, k)` where n=total samples, c=correct samples
+
+- **7-Type Error Classification**: `SyntaxError`, `RuntimeError`, `Timeout`, `InvalidOutput`, `AssertionError`, `ImportError`, `MemoryError`
+
+- **Dual-Style Code Support** (Unique Innovation): When the model generates function-style code (`def solve(...)`) but tests expect stdin/stdout, the evaluator **auto-generates a wrapper** with 6 progressive strategies:
+  1. Empty input → no-arg call
+  2. Single integer → direct pass
+  3. Space-separated integers → list conversion
+  4. First line N + second line array → `(n, arr)` tuple
+  5. Multi-line parsing → positional arguments
+  6. String fallback
+
+- **Multi-Format Test Parsing**: Supports TACO, HumanEval, MBPP, function-call, raw assert, and stdin/stdout test formats
+
+- **Post-Processing Pipeline** (7 modules):
+  | Module | Purpose |
+  |--------|---------|
+  | `extractor.py` | Extract code blocks from model output (handles markdown, chat templates) |
+  | `fixer.py` | Auto-fix common syntax errors (missing imports, indentation, brackets) |
+  | `normalizer.py` | Normalize code formatting (whitespace, line endings, encoding) |
+  | `validator.py` | Validate code structure and completeness |
+  | `import_registry.py` | Auto-detect and inject missing standard library imports |
+  | `executor.py` | Sandboxed code execution with timeout |
+  | `pipeline.py` | Orchestrate the full postprocess pipeline |
+
+- **Execution Time Statistics**: mean, p50, p95, max runtime, TLE (Time Limit Exceeded) rate
+
+- **Code Quality Metrics**: Average code length, average line count, extra I/O rate, interface compliance rate
+
+#### 5. Report Generation System
+
+Two independent report generators provide comprehensive analysis:
+
+| Generator | File | Lines | Output Formats |
+|-----------|------|-------|----------------|
+| **Technical Report** | `report_generator.py` | 2213 | HTML with embedded SVG charts |
+| **Academic Report** | `academic-report.ts` | 1666 | HTML + Markdown |
+
+Both generators include:
+- Training loss curves with sampled data points (uniform sampling algorithm)
+- Per-epoch metric breakdowns
+- LoRA configuration summary (rank, alpha, target modules, trainable %)
+- Experiment environment metadata (OS, Python, PyTorch, CUDA, GPU model)
+- Evaluation segment breakdown by difficulty/category
+- Failure case examples with error analysis
+- Data consistency validation (step count, learning rate, scheduler detection)
+
+#### 6. System Monitoring (Real-time Dashboard)
+
+The `SystemMonitor` service queries hardware status via `nvidia-smi` and OS APIs:
+
+| Metric | Data Source | Details |
+|--------|-------------|---------|
+| **GPU** | `nvidia-smi --query-gpu` | Utilization %, memory used/total, temperature, device name |
+| **CPU** | `os.cpus()` | Usage %, core count |
+| **RAM** | `os.totalmem() / freemem()` | Used/total, percentage |
+| **Storage** | `wmic logicaldisk` / `df` | Used/free/total across all drives |
+| **Health** | Composite | Healthy / Warning / Error based on GPU temp, storage, memory |
+
+### Design Advantages
+
+1. **Decoupled Provider Architecture**: The Factory pattern enables swapping implementations without touching business logic. Adding cloud training (e.g., AWS SageMaker) only requires a new `TrainerProvider` — zero changes to the RunExecutor.
+
+2. **Zero-Configuration Dataset Handling**: The `FormatRegistry` eliminates manual data preprocessing. Users upload data in any common format (Alpaca, ShareGPT, ChatML, OASST, custom instruction/response, etc.) and training begins automatically.
+
+3. **Full Observability Pipeline**: From training start to report generation, every step is instrumented with real-time events. Users never need to SSH into a server or `tail -f` log files.
+
+4. **Dual-Style Evaluation Innovation**: The automatic function↔stdin/stdout bridge means models trained on function-style data can be correctly evaluated on stdin/stdout benchmarks (and vice versa), eliminating a major false-negative source in code evaluation.
+
+5. **Production-Grade Reliability**: Queue persistence across restarts, batch log buffering for SQLite, adapter integrity checking, configurable checkpoint retention, and auto-recovery from interrupted runs.
+
+6. **Academic-Ready Outputs**: Both HTML and Markdown reports are structured for direct inclusion in research papers, with SVG loss curves, per-epoch tables, and environment reproducibility metadata.
 
 ### One-Click Start
 
@@ -258,7 +462,7 @@ npm run dev
 |---------|-----|
 | **Frontend UI** | http://localhost:4173 |
 | **Backend API** | http://localhost:3001 |
-| **API Docs** | http://localhost:3001/docs |
+| **API Docs (Swagger)** | http://localhost:3001/docs |
 
 ### Python Dependencies Installation
 
@@ -266,25 +470,6 @@ npm run dev
 cd LLMTrainPipeline/backend/scripts
 python3 -m pip install -r requirements.txt
 ```
-
-### Main Feature Modules
-
-#### 1. Training Module (train.py)
-- Supports TRL SFTTrainer + QLoRA
-- Automatic data format detection (20+ formats)
-- Real-time training event output
-- Automatic checkpoint saving
-
-#### 2. Evaluation Module (eval.py)
-- Pass@k evaluation (k=1,5,10)
-- Error classification statistics
-- Execution time analysis
-- Code quality assessment
-
-#### 3. Inference Module (infer.py)
-- Chat Template support
-- Streaming output
-- Batch inference
 
 ---
 
@@ -522,4 +707,4 @@ MIT License
 
 ---
 
-*Document Last Updated: 2026-01-29*
+*Document Last Updated: 2026-02-25*
